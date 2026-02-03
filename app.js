@@ -55,6 +55,14 @@ function app() {
                 alert("Preencha o Número SEI corretamente.");
                 return;
             }
+            if (!this.processo.pro_reitoria_unidade) {
+                alert("Preencha a Pró-Reitoria / Unidade.");
+                return;
+            }
+            if (!this.processo.campus_id) {
+                alert("Selecione o Campus.");
+                return;
+            }
             if (!this.processo.sala) {
                 alert("Preencha a Sala/Espaço.");
                 return;
@@ -96,6 +104,16 @@ function app() {
         salvarItem: function() {
             var self = this;
             if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
+            
+            // Verifica se patrimônio já existe no processo
+            var patrimonioExiste = this.itens.some(function(i) {
+                return String(i.patrimonio) === String(self.item.patrimonio);
+            });
+            if (patrimonioExiste) {
+                alert("Este patrimônio já foi cadastrado neste processo.");
+                return;
+            }
+            
             if (!this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
             if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
             if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
