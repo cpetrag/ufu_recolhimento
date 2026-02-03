@@ -112,8 +112,17 @@ function salvarItem(item, processoId) {
 // ENVIO PARA SHAREPOINT
 // =============================================
 function enviarParaSharePoint(processo, itens) {
+    // Filtra só os que ainda não foram enviados
+    var itensNaoEnviados = itens.filter(function(item) {
+        return !item.enviado_sharepoint;
+    });
+    
+    if (itensNaoEnviados.length === 0) {
+        return Promise.resolve([]);
+    }
+    
     var resultados = [];
-    var promessas = itens.map(function(item) {
+    var promessas = itensNaoEnviados.map(function(item) {
         var payload = {
             SEI: processo.sei,
             Unidade: processo.pro_reitoria_unidade || "",
@@ -132,7 +141,14 @@ function enviarParaSharePoint(processo, itens) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         }).then(function(response) {
-            resultados.push({ patrimonio: item.patrimonio, ok: response.ok });
+            if (response.ok) {
+                // Marca como enviado no Supabase
+                return db.from("patrimonios").update({ enviado_sharepoint: true }).eq("id", item.id).then(function() {
+                    resultados.push({ patrimonio: item.patrimonio, ok: true });
+                });
+            } else {
+                resultados.push({ patrimonio: item.patrimonio, ok: false });
+            }
         }).catch(function(error) {
             resultados.push({ patrimonio: item.patrimonio, ok: false, erro: error.message });
         });
@@ -158,4 +174,5 @@ window.API = {
     salvarProcesso: salvarProcesso,
     salvarItem: salvarItem,
     enviarParaSharePoint: enviarParaSharePoint
+
 };
