@@ -76,7 +76,7 @@ buscarPatrimonio: function() {
     }
     var vZ = v.padStart(6, "0");
     var achado = this.baseCSV.find(function(i) {
-        return String(i.NroPatrimonio).padStart(6, "0") === vZ || String(i.CodigoBarra) === v;
+        return String(i.NroPatrimonio).padStart(6, "0") === vZ || String(i.CodioBarra) === v;
     });
     this.item.descricao = achado ? achado.DescricaoBem : "";
     this.patrimonioNaoEncontrado = !achado;
@@ -233,5 +233,6 @@ buscarPatrimonio: function() {
     };
 
 }
+
 
 
