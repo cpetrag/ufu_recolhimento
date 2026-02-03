@@ -19,7 +19,7 @@ function app() {
             var self = this;
             API.carregarCampus().then(function(data) { self.campus = data; });
             API.carregarUnidades().then(function(data) { self.unidades_db = data; });
-            Papa.parse("base.csv", {
+            Papa.parse("https://drive.google.com/uc?export=download&id=1bJzbPvgQGHfmlNGBURZO1xRQEib4IfFE", {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
@@ -231,4 +231,5 @@ function app() {
             doc.save("Recolhimento_" + this.processo.sei + ".pdf");
         }
     };
+
 }
