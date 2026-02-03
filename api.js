@@ -109,7 +109,7 @@ function salvarItem(item, processoId) {
 }
 
 // =============================================
-// ENVIO PARA SHAREPOINT
+// ENVIO PARA SHAREPOINT (com controle de duplicatas)
 // =============================================
 function enviarParaSharePoint(processo, itens) {
     // Filtra só os que ainda não foram enviados
@@ -174,5 +174,4 @@ window.API = {
     salvarProcesso: salvarProcesso,
     salvarItem: salvarItem,
     enviarParaSharePoint: enviarParaSharePoint
-
 };
