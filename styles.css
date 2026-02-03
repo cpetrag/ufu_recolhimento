@@ -1,0 +1,9 @@
+[x-cloak] {
+    display: none;
+}
+
+.tab-active {
+    color: #2563eb;
+    border-bottom: 2px solid #2563eb;
+    font-weight: bold;
+}

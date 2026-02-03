@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Recolhimento UFU</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-slate-100 min-h-screen pb-20" x-data="app()" x-init="init()">
+
+    <nav class="bg-white shadow-md border-b sticky top-0 z-50">
+        <div class="flex justify-around p-2">
+            <button x-on:click="aba = 'processo'" x-bind:class="aba === 'processo' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
+                <span>📁</span><span>Processo</span>
+            </button>
+            <button x-on:click="aba = 'itens'" x-bind:class="aba === 'itens' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center" x-bind:disabled="!processoId">
+                <span>🪑</span><span>Itens</span>
+            </button>
+            <button x-on:click="aba = 'pdf'; if(processoId) buscaSei = processo.sei" x-bind:class="aba === 'pdf' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
+                <span>📄</span><span>Finalizar</span>
+            </button>
+        </div>
+    </nav>
+
+    <div class="p-4 max-w-lg mx-auto">
+        <h1 class="text-center font-black text-slate-700 mb-4 uppercase tracking-tighter text-xl">Recolhimento UFU</h1>
+        
+        <div x-show="aba === 'processo'" class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-emerald-500">
+                <h2 class="font-bold mb-4 text-emerald-700 text-[10px] uppercase tracking-widest text-center">Identificação do Processo</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Número SEI</label>
+                        <input class="w-full p-3 border rounded-lg text-lg font-mono bg-blue-50 focus:ring-2 focus:ring-blue-400 outline-none" 
+                               placeholder="23117.000000/0000-00" x-model="processo.sei" 
+                               x-on:input="processo.sei = API.mascaraSEI(processo.sei)" x-on:blur="buscarProcessoExistente()">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Pró-Reitoria / Unidade</label>
+                        <input class="w-full p-2 border rounded-lg bg-slate-50" list="unidades-list" x-model="processo.pro_reitoria_unidade" placeholder="Selecione a Unidade">
+                        <datalist id="unidades-list">
+                            <template x-for="u in unidades_db"><option x-bind:value="u.nome"></option></template>
+                        </datalist>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <select class="p-2 border rounded-lg bg-white" x-model="processo.campus_id" x-on:change="carregarBlocos()">
+                            <option value="">Campus</option>
+                            <template x-for="c in campus"><option x-bind:value="c.id" x-text="c.nome"></option></template>
+                        </select>
+                        <select class="p-2 border rounded-lg bg-white" x-model="processo.bloco_id">
+                            <option value="">Bloco</option>
+                            <template x-for="b in blocos"><option x-bind:value="b.id" x-text="b.nome"></option></template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest">Sala / Espaço (Obrigatório)</label>
+                        <input class="w-full p-2 border rounded-lg bg-slate-50" x-model="processo.sala" placeholder="Ex: Sala 204">
+                    </div>
+                </div>
+                <button class="w-full mt-6 bg-emerald-600 text-white p-4 rounded-xl font-bold shadow-lg" x-on:click="salvarProcesso()">
+                    <span x-text="processoId ? 'ATUALIZAR DADOS' : 'INICIAR PROCESSO'"></span>
+                </button>
+            </div>
+        </div>
+
+        <div x-show="aba === 'itens'" x-cloak class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-blue-500">
+                <input class="w-full p-3 border rounded-lg bg-yellow-50 font-bold text-xl mb-3 outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()">
+                
+                <div class="mb-3">
+                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Descrição do Bem</label>
+                    <textarea x-ref="campoDescricao" class="w-full p-2 border rounded-lg text-sm bg-slate-50" rows="2" x-model="item.descricao" x-bind:readonly="!item.bvm" placeholder="Descrição Automática"></textarea>
+                    <template x-if="patrimonioNaoEncontrado">
+                        <p class="text-[10px] text-red-600 font-bold mt-1 uppercase italic">⚠️ Patrimônio não localizado na base</p>
+                    </template>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <select class="w-full p-2 border rounded-lg text-sm font-bold bg-white" x-model="item.tamanho">
+                        <option value="">Tamanho</option>
+                        <option>P</option><option>M</option><option>G</option><option>GG</option>
+                    </select>
+                    <div class="flex flex-col justify-center gap-1 text-[10px] font-bold uppercase">
+                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="item.viavel"> Viável</label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="item.bvm" x-on:change="if(item.bvm) { item.descricao = ''; $nextTick(function() { $refs.campoDescricao.focus(); }); }"> BVM
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-4 p-3 border-2 border-dashed rounded-lg bg-slate-50 text-center">
+                    <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Foto do Item</label>
+                    <input type="file" accept="image/*" capture="environment" class="text-xs w-full" x-on:change="capturarFoto($event)">
+                    <template x-if="item.foto"><div class="mt-2 text-[10px] text-emerald-600 font-bold">✓ Foto OK</div></template>
+                </div>
+                <button class="w-full bg-blue-600 text-white p-4 rounded-xl font-black shadow-lg text-lg" x-on:click="salvarItem()" x-bind:disabled="loading">
+                    <span x-text="loading ? 'SALVANDO...' : 'GRAVAR ITEM'"></span>
+                </button>
+            </div>
+            
+            <div x-show="itens.length > 0" class="bg-white p-3 rounded-xl shadow">
+                <h3 class="text-[10px] font-bold text-slate-500 uppercase mb-2">Itens (<span x-text="itens.length"></span>)</h3>
+                <div class="space-y-2 max-h-40 overflow-y-auto">
+                    <template x-for="i in itens" x-bind:key="i.patrimonio">
+                        <div class="text-xs p-2 bg-slate-50 rounded flex justify-between">
+                            <span class="font-mono font-bold" x-text="i.patrimonio"></span>
+                            <span class="text-slate-500 truncate ml-2" x-text="i.descricao"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="aba === 'pdf'" x-cloak class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-600">
+                <h2 class="font-bold mb-4 text-blue-700 text-[10px] uppercase text-center">Finalizar e Exportar</h2>
+                <input class="w-full p-3 border rounded-lg font-mono text-sm bg-slate-50 mb-4" x-model="buscaSei" x-on:input="buscaSei = API.mascaraSEI(buscaSei)" placeholder="23117.000000/0000-00">
+                
+                <div class="space-y-3">
+                    <button class="w-full bg-blue-700 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="gerarPDF()" x-bind:disabled="exportando">
+                        📄 GERAR PDF
+                    </button>
+                    
+                    <button class="w-full bg-emerald-600 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="enviarSharePoint()" x-bind:disabled="exportando">
+                        <span x-text="exportando ? 'ENVIANDO...' : '☁️ ENVIAR PARA SHAREPOINT'"></span>
+                    </button>
+                    
+                    <button class="w-full bg-purple-600 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="gerarPDFeEnviar()" x-bind:disabled="exportando">
+                        <span x-text="exportando ? 'PROCESSANDO...' : '🚀 PDF + SHAREPOINT'"></span>
+                    </button>
+                </div>
+                
+                <div x-show="resultadoEnvio" class="mt-4 p-3 rounded-lg text-sm" x-bind:class="resultadoEnvio?.erro ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'">
+                    <span x-text="resultadoEnvio?.mensagem"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
