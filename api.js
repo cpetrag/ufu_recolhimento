@@ -5,7 +5,7 @@ var SUPABASE_URL = "https://oyvvvxpgqhyowvfaepgu.supabase.co";
 var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95dnZ2eHBncWh5b3d2ZmFlcGd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDUxODEsImV4cCI6MjA4NTMyMTE4MX0.9MIFMZWqJWzXRW3J6v__tC_JFBhn-Tbomu8ABDKxkOM";
 
 // Power Automate - Cole a URL do seu Flow aqui
-var POWER_AUTOMATE_URL = "COLE_A_URL_DO_SEU_FLOW_AQUI";
+var POWER_AUTOMATE_URL = "https://defaultcd5e6d23cb99418988ab1a9021a0c4.51.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/3ba53f8c4f1345f5a93729b3a1b849b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=2zgtu_kmMbEjoCexDvlvSYeH1tHYTzDDkKliszTfavY";
 
 // =============================================
 // CLIENTE SUPABASE
@@ -175,3 +175,4 @@ window.API = {
     salvarItem: salvarItem,
     enviarParaSharePoint: enviarParaSharePoint
 };
+
