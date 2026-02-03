@@ -26,7 +26,7 @@
                 <span>🪑</span><span>Itens</span>
             </button>
             <button x-on:click="aba = 'pdf'; if(processoId) buscaSei = processo.sei" x-bind:class="aba === 'pdf' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
-                <span>📄</span><span>Finalizar</span>
+                <span>📄</span><span>Documento</span>
             </button>
         </div>
     </nav>
@@ -123,26 +123,12 @@
 
         <div x-show="aba === 'pdf'" x-cloak class="space-y-4">
             <div class="bg-white p-4 rounded-xl shadow border-l-4 border-blue-600">
-                <h2 class="font-bold mb-4 text-blue-700 text-[10px] uppercase text-center">Finalizar e Exportar</h2>
+                <h2 class="font-bold mb-4 text-blue-700 text-[10px] uppercase text-center">Gerar Documento para anexar ao SEI</h2>
                 <input class="w-full p-3 border rounded-lg font-mono text-sm bg-slate-50 mb-4" x-model="buscaSei" x-on:input="buscaSei = API.mascaraSEI(buscaSei)" placeholder="23117.000000/0000-00">
                 
-                <div class="space-y-3">
-                    <button class="w-full bg-blue-700 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="gerarPDF()" x-bind:disabled="exportando">
-                        📄 GERAR PDF
-                    </button>
-                    
-                    <button class="w-full bg-emerald-600 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="enviarSharePoint()" x-bind:disabled="exportando">
-                        <span x-text="exportando ? 'ENVIANDO...' : '☁️ ENVIAR PARA SHAREPOINT'"></span>
-                    </button>
-                    
-                    <button class="w-full bg-purple-600 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="gerarPDFeEnviar()" x-bind:disabled="exportando">
-                        <span x-text="exportando ? 'PROCESSANDO...' : '🚀 PDF + SHAREPOINT'"></span>
-                    </button>
-                </div>
-                
-                <div x-show="resultadoEnvio" class="mt-4 p-3 rounded-lg text-sm" x-bind:class="resultadoEnvio?.erro ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'">
-                    <span x-text="resultadoEnvio?.mensagem"></span>
-                </div>
+                <button class="w-full bg-blue-700 text-white p-4 rounded-xl font-black shadow-lg" x-on:click="gerarDocumento()" x-bind:disabled="exportando">
+                    <span x-text="exportando ? 'GERANDO...' : '📄 GERAR DOCUMENTO'"></span>
+                </button>
             </div>
         </div>
     </div>
