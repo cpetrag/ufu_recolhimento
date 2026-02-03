@@ -75,15 +75,18 @@ buscarPatrimonio: function() {
         return;
     }
     var vNum = parseInt(v, 10);
+    console.log("Buscando:", vNum);
+    console.log("Primeiros 3 registros:", this.baseCSV.slice(0, 3));
     var achado = this.baseCSV.find(function(i) {
         var nroPat = parseInt(i.NroPatrimonio, 10);
         var codBar = parseInt(i.CodioBarra, 10);
         return nroPat === vNum || (codBar !== 0 && codBar === vNum);
     });
+    console.log("Achou:", achado);
     this.item.descricao = achado ? achado.DescricaoBem : "";
     this.patrimonioNaoEncontrado = !achado;
 },
-
+        
         capturarFoto: function(e) {
             var self = this;
             var file = e.target.files[0];
@@ -235,6 +238,7 @@ buscarPatrimonio: function() {
     };
 
 }
+
 
 
 
