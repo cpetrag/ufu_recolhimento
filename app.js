@@ -19,7 +19,7 @@ function app() {
             var self = this;
             API.carregarCampus().then(function(data) { self.campus = data; });
             API.carregarUnidades().then(function(data) { self.unidades_db = data; });
-            Papa.parse("https://drive.google.com/uc?export=download&id=1bJzbPvgQGHfmlNGBURZO1xRQEib4IfFE", {
+            Papa.parse("https://ahzeyywnngbbxrqtjlue.supabase.co/storage/v1/object/public/arquivos/base.csv", {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
@@ -233,3 +233,4 @@ function app() {
     };
 
 }
+
