@@ -11,7 +11,6 @@ function app() {
         exportando: false,
         buscaSei: "",
         patrimonioNaoEncontrado: false,
-        resultadoEnvio: null,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
 
@@ -135,69 +134,20 @@ function app() {
             });
         },
 
-        gerarPDF: function() {
-            var self = this;
-            this.carregarProcessoPDF().then(function(proc) {
-                if (proc) self.criarPDF();
-            });
-        },
-
-        enviarSharePoint: function() {
-            var self = this;
-            this.carregarProcessoPDF().then(function(proc) {
-                if (!proc) return;
-                if (self.itens.length === 0) {
-                    alert("Nenhum item para enviar.");
-                    return;
-                }
-                self.exportando = true;
-                self.resultadoEnvio = null;
-                API.enviarParaSharePoint(self.processo, self.itens).then(function(resultados) {
-                    if (resultados.length === 0) {
-                        self.resultadoEnvio = {
-                            erro: false,
-                            mensagem: "Todos os itens já foram enviados anteriormente ✓"
-                        };
-                    } else {
-                        var sucesso = resultados.filter(function(r) { return r.ok; }).length;
-                        var falha = resultados.filter(function(r) { return !r.ok; }).length;
-                        self.resultadoEnvio = {
-                            erro: falha > 0,
-                            mensagem: "Enviados: " + sucesso + "/" + resultados.length + (falha > 0 ? " | Falhas: " + falha : " ✓")
-                        };
-                    }
-                    self.exportando = false;
-                }).catch(function(e) {
-                    self.resultadoEnvio = { erro: true, mensagem: "Erro: " + e.message };
-                    self.exportando = false;
-                });
-            });
-        },
-
-        gerarPDFeEnviar: function() {
+        gerarDocumento: function() {
             var self = this;
             this.carregarProcessoPDF().then(function(proc) {
                 if (!proc) return;
                 self.exportando = true;
-                self.resultadoEnvio = null;
+                
+                // Gera o PDF
                 self.criarPDF();
+                
+                // Envia pro SharePoint silenciosamente (só os não enviados)
                 if (self.itens.length > 0) {
-                    API.enviarParaSharePoint(self.processo, self.itens).then(function(resultados) {
-                        if (resultados.length === 0) {
-                            self.resultadoEnvio = {
-                                erro: false,
-                                mensagem: "PDF gerado ✓ | Todos os itens já foram enviados anteriormente ✓"
-                            };
-                        } else {
-                            var sucesso = resultados.filter(function(r) { return r.ok; }).length;
-                            self.resultadoEnvio = {
-                                erro: false,
-                                mensagem: "PDF gerado ✓ | SharePoint: " + sucesso + "/" + resultados.length + " enviados ✓"
-                            };
-                        }
+                    API.enviarParaSharePoint(self.processo, self.itens).then(function() {
                         self.exportando = false;
-                    }).catch(function(e) {
-                        self.resultadoEnvio = { erro: true, mensagem: "Erro: " + e.message };
+                    }).catch(function() {
                         self.exportando = false;
                     });
                 } else {
