@@ -74,9 +74,11 @@ buscarPatrimonio: function() {
         this.patrimonioNaoEncontrado = false;
         return;
     }
-    var vZ = v.padStart(6, "0");
+    var vNum = parseInt(v, 10);
     var achado = this.baseCSV.find(function(i) {
-        return String(i.NroPatrimonio).padStart(6, "0") === vZ || (String(i.CodioBarra) !== "0" && String(i.CodioBarra) === String(parseInt(v, 10)));
+        var nroPat = parseInt(i.NroPatrimonio, 10);
+        var codBar = parseInt(i.CodioBarra, 10);
+        return nroPat === vNum || (codBar !== 0 && codBar === vNum);
     });
     this.item.descricao = achado ? achado.DescricaoBem : "";
     this.patrimonioNaoEncontrado = !achado;
@@ -233,6 +235,7 @@ buscarPatrimonio: function() {
     };
 
 }
+
 
 
 
