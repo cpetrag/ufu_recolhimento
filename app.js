@@ -189,7 +189,12 @@ function app() {
                     if (data.column.index === 0 && data.cell.section === "body") {
                         var img = self.itens[data.row.index].foto;
                         if (img) {
-                            doc.addImage(img, "JPEG", data.cell.x + 2, data.cell.y + 2, data.cell.width - 4, data.cell.height - 4);
+                            var cellW = data.cell.width - 4;
+                            var cellH = data.cell.height - 4;
+                            var size = Math.min(cellW, cellH);
+                            var x = data.cell.x + 2 + (cellW - size) / 2;
+                            var y = data.cell.y + 2 + (cellH - size) / 2;
+                            doc.addImage(img, "JPEG", x, y, size, size);
                         }
                     }
                 }
