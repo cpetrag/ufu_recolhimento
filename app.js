@@ -67,26 +67,23 @@ function app() {
             });
         },
 
-buscarPatrimonio: function() {
-    var v = String(this.item.patrimonio).trim();
-    if (!v) {
-        this.item.descricao = "";
-        this.patrimonioNaoEncontrado = false;
-        return;
-    }
-    var vNum = parseInt(v, 10);
-    console.log("Buscando:", vNum);
-    console.log("Primeiros 3 registros:", this.baseCSV.slice(0, 3));
-    var achado = this.baseCSV.find(function(i) {
-        var nroPat = parseInt(i.NroPatrimonio, 10);
-        var codBar = parseInt(i.CodioBarra, 10);
-        return nroPat === vNum || (codBar !== 0 && codBar === vNum);
-    });
-    console.log("Achou:", achado);
-    this.item.descricao = achado ? achado.DescricaoBem : "";
-    this.patrimonioNaoEncontrado = !achado;
-},
-        
+        buscarPatrimonio: function() {
+            var v = String(this.item.patrimonio).trim();
+            if (!v) {
+                this.item.descricao = "";
+                this.patrimonioNaoEncontrado = false;
+                return;
+            }
+            var vNum = parseInt(v, 10);
+            var achado = this.baseCSV.find(function(i) {
+                var nroPat = parseInt(i.NroPatrimonio, 10);
+                var codBar = parseInt(i.CodioBarra, 10);
+                return nroPat === vNum || (codBar !== 0 && codBar === vNum);
+            });
+            this.item.descricao = achado ? achado.DescricaoBem : "";
+            this.patrimonioNaoEncontrado = !achado;
+        },
+
         capturarFoto: function(e) {
             var self = this;
             var file = e.target.files[0];
@@ -156,12 +153,19 @@ buscarPatrimonio: function() {
                 self.exportando = true;
                 self.resultadoEnvio = null;
                 API.enviarParaSharePoint(self.processo, self.itens).then(function(resultados) {
-                    var sucesso = resultados.filter(function(r) { return r.ok; }).length;
-                    var falha = resultados.filter(function(r) { return !r.ok; }).length;
-                    self.resultadoEnvio = {
-                        erro: falha > 0,
-                        mensagem: "Enviados: " + sucesso + "/" + self.itens.length + (falha > 0 ? " | Falhas: " + falha : " ✓")
-                    };
+                    if (resultados.length === 0) {
+                        self.resultadoEnvio = {
+                            erro: false,
+                            mensagem: "Todos os itens já foram enviados anteriormente ✓"
+                        };
+                    } else {
+                        var sucesso = resultados.filter(function(r) { return r.ok; }).length;
+                        var falha = resultados.filter(function(r) { return !r.ok; }).length;
+                        self.resultadoEnvio = {
+                            erro: falha > 0,
+                            mensagem: "Enviados: " + sucesso + "/" + resultados.length + (falha > 0 ? " | Falhas: " + falha : " ✓")
+                        };
+                    }
                     self.exportando = false;
                 }).catch(function(e) {
                     self.resultadoEnvio = { erro: true, mensagem: "Erro: " + e.message };
@@ -179,11 +183,18 @@ buscarPatrimonio: function() {
                 self.criarPDF();
                 if (self.itens.length > 0) {
                     API.enviarParaSharePoint(self.processo, self.itens).then(function(resultados) {
-                        var sucesso = resultados.filter(function(r) { return r.ok; }).length;
-                        self.resultadoEnvio = {
-                            erro: false,
-                            mensagem: "PDF gerado ✓ | SharePoint: " + sucesso + "/" + self.itens.length + " enviados ✓"
-                        };
+                        if (resultados.length === 0) {
+                            self.resultadoEnvio = {
+                                erro: false,
+                                mensagem: "PDF gerado ✓ | Todos os itens já foram enviados anteriormente ✓"
+                            };
+                        } else {
+                            var sucesso = resultados.filter(function(r) { return r.ok; }).length;
+                            self.resultadoEnvio = {
+                                erro: false,
+                                mensagem: "PDF gerado ✓ | SharePoint: " + sucesso + "/" + resultados.length + " enviados ✓"
+                            };
+                        }
                         self.exportando = false;
                     }).catch(function(e) {
                         self.resultadoEnvio = { erro: true, mensagem: "Erro: " + e.message };
@@ -236,11 +247,4 @@ buscarPatrimonio: function() {
             doc.save("Recolhimento_" + this.processo.sei + ".pdf");
         }
     };
-
 }
-
-
-
-
-
-
