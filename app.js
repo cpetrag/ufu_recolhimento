@@ -67,20 +67,20 @@ function app() {
             });
         },
 
-        buscarPatrimonio: function() {
-            var v = String(this.item.patrimonio).trim();
-            if (!v) {
-                this.item.descricao = "";
-                this.patrimonioNaoEncontrado = false;
-                return;
-            }
-            var vZ = v.padStart(6, "0");
-            var achado = this.baseCSV.find(function(i) {
-                return String(i.NroPatrimonio).padStart(6, "0") === vZ;
-            });
-            this.item.descricao = achado ? achado.DescricaoBem : "";
-            this.patrimonioNaoEncontrado = !achado;
-        },
+buscarPatrimonio: function() {
+    var v = String(this.item.patrimonio).trim();
+    if (!v) {
+        this.item.descricao = "";
+        this.patrimonioNaoEncontrado = false;
+        return;
+    }
+    var vZ = v.padStart(6, "0");
+    var achado = this.baseCSV.find(function(i) {
+        return String(i.NroPatrimonio).padStart(6, "0") === vZ || String(i.CodigoBarra) === v;
+    });
+    this.item.descricao = achado ? achado.DescricaoBem : "";
+    this.patrimonioNaoEncontrado = !achado;
+},
 
         capturarFoto: function(e) {
             var self = this;
@@ -233,4 +233,5 @@ function app() {
     };
 
 }
+
 
