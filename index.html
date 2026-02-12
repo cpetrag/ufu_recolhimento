@@ -75,19 +75,6 @@
         </div>
 
         <div x-show="aba === 'itens'" x-cloak class="space-y-4">
-            <div x-show="!fotoArea" class="bg-white p-4 rounded-xl shadow border-t-4 border-amber-500">
-                <div class="p-3 border-2 border-dashed rounded-lg bg-amber-50 text-center">
-                    <label class="block text-sm font-bold text-amber-700 mb-2 uppercase">📷 Foto da Área de Transferência</label>
-                    <input type="file" accept="image/*" capture="environment" class="text-sm w-full file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-white file:font-bold" x-on:change="capturarFotoArea($event)">
-                </div>
-            </div>
-            <div x-show="fotoArea" class="bg-white p-4 rounded-xl shadow border-t-4 border-emerald-500">
-                <div class="text-center">
-                    <p class="text-sm font-bold text-emerald-700 uppercase mb-2">✓ Foto da Área de Transferência</p>
-                    <img x-bind:src="fotoArea" class="max-h-40 mx-auto rounded-lg shadow">
-                    <button class="mt-2 text-xs text-red-500 font-bold underline" x-on:click="fotoArea = ''; API.salvarFotoArea(processoId, '')">Remover foto</button>
-                </div>
-            </div>
             <div class="bg-white p-4 rounded-xl shadow border-t-4 border-blue-500">
                 <input class="w-full p-3 border rounded-lg bg-yellow-50 font-bold text-xl mb-3 outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()">
                 
