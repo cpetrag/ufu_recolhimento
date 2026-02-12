@@ -153,7 +153,6 @@ function app() {
             var patrimonioFinal = this.item.semPatrimonio ? "Sem número" : this.item.patrimonio;
             if (!patrimonioFinal) { alert("Informe o Nº Patrimônio."); return; }
 
-            // Verifica duplicata só quando tem patrimônio real
             if (!this.item.semPatrimonio) {
                 var patrimonioExiste = this.itens.some(function(i) {
                     return String(i.patrimonio) === String(patrimonioFinal);
@@ -209,11 +208,7 @@ function app() {
             this.carregarProcessoPDF().then(function(proc) {
                 if (!proc) return;
                 self.exportando = true;
-                
-                // Gera o PDF
                 self.criarPDF();
-                
-                // Envia pro SharePoint silenciosamente (só os não enviados)
                 if (self.itens.length > 0) {
                     API.enviarParaSharePoint(self.processo, self.itens).then(function() {
                         self.exportando = false;
@@ -230,7 +225,6 @@ function app() {
             var jsPDF = window.jspdf.jsPDF;
             var doc = new jsPDF("p", "mm", "a4");
             var pageWidth = doc.internal.pageSize.getWidth();
-            var self = this;
 
             doc.setFontSize(14);
             doc.setFont("helvetica", "bold");
@@ -242,7 +236,9 @@ function app() {
             doc.text("PROCESSO SEI: " + this.processo.sei, 15, 38);
             doc.text("SALA / ESPAÇO: " + this.processo.sala, 15, 43);
 
+            var fotos = [];
             var tableBody = this.itens.map(function(i) {
+                fotos.push(i.foto || "");
                 return [
                     { content: "", styles: { minCellHeight: 40 } },
                     "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
@@ -257,7 +253,7 @@ function app() {
                 styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
                 didDrawCell: function(data) {
                     if (data.column.index === 0 && data.cell.section === "body") {
-                        var img = self.itens[data.row.index].foto;
+                        var img = fotos[data.row.index];
                         if (img) {
                             var cellW = data.cell.width - 4;
                             var cellH = data.cell.height - 4;
