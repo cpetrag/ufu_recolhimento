@@ -12,7 +12,7 @@ function app() {
         buscaSei: "",
         patrimonioNaoEncontrado: false,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
-        item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
+        item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
 
         init: function() {
             var self = this;
@@ -101,13 +101,38 @@ function app() {
             }
         },
 
-        colarFoto: function() {
+        colarFoto: function(e) {
             var self = this;
+            var items = e.clipboardData && e.clipboardData.items;
+            if (!items) {
+                alert("Navegador não suporta colar imagens.");
+                return;
+            }
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf("image") !== -1) {
+                    var blob = items[i].getAsFile();
+                    if (blob) {
+                        API.processarFoto(blob).then(function(foto) {
+                            self.item.foto = foto;
+                        });
+                        return;
+                    }
+                }
+            }
+            alert("Nenhuma imagem encontrada. Copie uma imagem primeiro e depois cole aqui (Ctrl+V).");
+        },
+
+        colarFotoBtn: function() {
+            var self = this;
+            if (!navigator.clipboard || !navigator.clipboard.read) {
+                alert("Clique nesta área e use Ctrl+V para colar a imagem.");
+                return;
+            }
             navigator.clipboard.read().then(function(items) {
                 for (var i = 0; i < items.length; i++) {
                     var types = items[i].types;
                     for (var j = 0; j < types.length; j++) {
-                        if (types[j].startsWith("image/")) {
+                        if (types[j].indexOf("image") !== -1) {
                             items[i].getType(types[j]).then(function(blob) {
                                 API.processarFoto(blob).then(function(foto) {
                                     self.item.foto = foto;
@@ -117,26 +142,29 @@ function app() {
                         }
                     }
                 }
-                alert("Nenhuma imagem encontrada na área de transferência.");
+                alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
             }).catch(function() {
-                alert("Não foi possível acessar a área de transferência. Verifique as permissões do navegador.");
+                alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V.");
             });
         },
 
         salvarItem: function() {
             var self = this;
             if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
-            
-            // Verifica se patrimônio já existe no processo
-            var patrimonioExiste = this.itens.some(function(i) {
-                return String(i.patrimonio) === String(self.item.patrimonio);
-            });
-            if (patrimonioExiste) {
-                alert("Este patrimônio já foi cadastrado neste processo.");
-                return;
+
+            // Verifica se patrimônio já existe no processo (ignora "Sem número")
+            if (this.item.patrimonio !== "Sem número") {
+                var patrimonioExiste = this.itens.some(function(i) {
+                    return String(i.patrimonio) === String(self.item.patrimonio);
+                });
+                if (patrimonioExiste) {
+                    alert("Este patrimônio já foi cadastrado neste processo.");
+                    return;
+                }
             }
-            
-            if (!this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
+
+            if (this.item.semPatrimonio && !this.item.descricao.trim()) { alert("Informe a descrição do item."); return; }
+            if (!this.item.semPatrimonio && !this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
             if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
             if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
             if (!this.item.foto) { alert("Capture a Foto."); return; }
@@ -151,7 +179,7 @@ function app() {
                     bvm: self.item.bvm,
                     foto: self.item.foto
                 });
-                self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" };
+                self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false };
                 self.patrimonioNaoEncontrado = false;
                 self.loading = false;
             }).catch(function() {
