@@ -101,7 +101,19 @@ function app() {
             }
         },
 
-        colarFoto: function() {
+        colarFoto: function(e) {
+            var self = this;
+            var files = e.clipboardData.files;
+            if (files.length > 0) {
+                API.processarFoto(files[0]).then(function(foto) {
+                    self.item.foto = foto;
+                });
+            } else {
+                alert("Nenhuma imagem encontrada. Copie uma imagem primeiro (Ctrl+C) e depois cole aqui (Ctrl+V).");
+            }
+        },
+
+        colarFotoBtn: function() {
             var self = this;
             navigator.clipboard.read().then(function(items) {
                 for (var i = 0; i < items.length; i++) {
@@ -119,7 +131,7 @@ function app() {
                 }
                 alert("Nenhuma imagem encontrada na área de transferência.");
             }).catch(function() {
-                alert("Não foi possível acessar a área de transferência. Verifique as permissões do navegador.");
+                alert("Não foi possível acessar. Clique na área e use Ctrl+V para colar.");
             });
         },
 

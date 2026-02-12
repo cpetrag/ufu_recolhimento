@@ -101,7 +101,10 @@
                 <div class="mb-4 p-3 border-2 border-dashed rounded-lg bg-slate-50 text-center">
                     <label class="block text-sm font-bold text-slate-600 mb-2 uppercase">📷 Foto do Item</label>
                     <input type="file" accept="image/*" capture="environment" class="text-sm w-full file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-500 file:text-white file:font-bold" x-on:change="capturarFoto($event)">
-                    <button type="button" class="mt-2 w-full py-2 px-4 bg-amber-500 text-white text-sm font-bold rounded-lg" x-on:click="colarFoto()">📋 Colar da Área de Transferência</button>
+                    <div tabindex="0" class="mt-2 p-4 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 cursor-pointer focus:ring-2 focus:ring-amber-500 outline-none" x-on:paste.prevent="colarFoto($event)" x-on:click="$el.focus(); colarFotoBtn()">
+                        <p class="text-sm font-bold text-amber-700">📋 Colar imagem</p>
+                        <p class="text-[10px] text-amber-600 mt-1">Clique aqui e pressione Ctrl+V, ou clique para colar</p>
+                    </div>
                     <template x-if="item.foto"><div class="mt-2 text-sm text-emerald-600 font-bold">✓ Foto OK</div></template>
                 </div>
                 <button class="w-full bg-blue-600 text-white p-4 rounded-xl font-black shadow-lg text-lg" x-on:click="salvarItem()" x-bind:disabled="loading">
