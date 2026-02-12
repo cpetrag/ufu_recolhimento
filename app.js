@@ -12,7 +12,7 @@ function app() {
         buscaSei: "",
         patrimonioNaoEncontrado: false,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
-        item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
+        item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
 
         init: function() {
             var self = this;
@@ -151,17 +151,20 @@ function app() {
         salvarItem: function() {
             var self = this;
             if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
-            
-            // Verifica se patrimônio já existe no processo
-            var patrimonioExiste = this.itens.some(function(i) {
-                return String(i.patrimonio) === String(self.item.patrimonio);
-            });
-            if (patrimonioExiste) {
-                alert("Este patrimônio já foi cadastrado neste processo.");
-                return;
+
+            // Verifica se patrimônio já existe no processo (ignora "Sem número")
+            if (this.item.patrimonio !== "Sem número") {
+                var patrimonioExiste = this.itens.some(function(i) {
+                    return String(i.patrimonio) === String(self.item.patrimonio);
+                });
+                if (patrimonioExiste) {
+                    alert("Este patrimônio já foi cadastrado neste processo.");
+                    return;
+                }
             }
-            
-            if (!this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
+
+            if (this.item.semPatrimonio && !this.item.descricao.trim()) { alert("Informe a descrição do item."); return; }
+            if (!this.item.semPatrimonio && !this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
             if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
             if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
             if (!this.item.foto) { alert("Capture a Foto."); return; }
@@ -176,7 +179,7 @@ function app() {
                     bvm: self.item.bvm,
                     foto: self.item.foto
                 });
-                self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" };
+                self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false };
                 self.patrimonioNaoEncontrado = false;
                 self.loading = false;
             }).catch(function() {

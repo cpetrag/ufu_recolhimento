@@ -76,11 +76,16 @@
 
         <div x-show="aba === 'itens'" x-cloak class="space-y-4">
             <div class="bg-white p-4 rounded-xl shadow border-t-4 border-blue-500">
-                <input class="w-full p-3 border rounded-lg bg-yellow-50 font-bold text-xl mb-3 outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()">
+                <div class="flex gap-2 mb-3 items-center">
+                    <input class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio">
+                    <label class="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase whitespace-nowrap cursor-pointer bg-red-50 border border-red-200 rounded-lg px-3 py-3">
+                        <input type="checkbox" x-model="item.semPatrimonio" x-on:change="if(item.semPatrimonio) { item.patrimonio = 'Sem número'; item.descricao = ''; patrimonioNaoEncontrado = false; $nextTick(function(){ $refs.campoDescricao.focus(); }); } else { item.patrimonio = ''; }"> Sem patrimônio
+                    </label>
+                </div>
                 
                 <div class="mb-3">
                     <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Descrição do Bem</label>
-                    <textarea x-ref="campoDescricao" class="w-full p-2 border rounded-lg text-sm bg-slate-50" rows="2" x-model="item.descricao" x-bind:readonly="!item.bvm" placeholder="Descrição Automática"></textarea>
+                    <textarea x-ref="campoDescricao" class="w-full p-2 border rounded-lg text-sm bg-slate-50" rows="2" x-model="item.descricao" x-bind:readonly="!item.bvm && !item.semPatrimonio" placeholder="Descrição Automática"></textarea>
                     <template x-if="patrimonioNaoEncontrado">
                         <p class="text-[10px] text-red-600 font-bold mt-1 uppercase italic">⚠️ Patrimônio não localizado na base</p>
                     </template>
