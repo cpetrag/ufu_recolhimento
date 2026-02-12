@@ -93,6 +93,13 @@ function salvarProcesso(processo) {
     });
 }
 
+function salvarFotoArea(processoId, foto) {
+    return db.from("processos").update({ foto_area: foto }).eq("id", processoId).then(function(res) {
+        if (res.error) throw res.error;
+        return res.data;
+    });
+}
+
 function salvarItem(item, processoId) {
     return db.from("patrimonios").insert([{
         patrimonio: item.patrimonio,
@@ -172,6 +179,7 @@ window.API = {
     buscarProcessoPorSEI: buscarProcessoPorSEI,
     carregarItensProcesso: carregarItensProcesso,
     salvarProcesso: salvarProcesso,
+    salvarFotoArea: salvarFotoArea,
     salvarItem: salvarItem,
     enviarParaSharePoint: enviarParaSharePoint
 };

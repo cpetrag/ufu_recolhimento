@@ -12,6 +12,7 @@ function app() {
         buscaSei: "",
         patrimonioNaoEncontrado: false,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
+        fotoArea: "",
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
 
         init: function() {
@@ -39,6 +40,7 @@ function app() {
                 if (data) {
                     self.processo = data;
                     self.processoId = data.id;
+                    self.fotoArea = data.foto_area || "";
                     self.carregarBlocos();
                     API.carregarItensProcesso(data.id).then(function(itens) {
                         self.itens = itens;
@@ -101,6 +103,17 @@ function app() {
             }
         },
 
+        capturarFotoArea: function(e) {
+            var self = this;
+            var file = e.target.files[0];
+            if (file) {
+                API.processarFoto(file).then(function(foto) {
+                    self.fotoArea = foto;
+                    API.salvarFotoArea(self.processoId, foto);
+                });
+            }
+        },
+
         salvarItem: function() {
             var self = this;
             if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
@@ -145,6 +158,7 @@ function app() {
                     return null;
                 }
                 self.processo = proc;
+                self.fotoArea = proc.foto_area || "";
                 return API.carregarItensProcesso(proc.id).then(function(itens) {
                     self.itens = itens;
                     return proc;
@@ -190,6 +204,20 @@ function app() {
             doc.text("PROCESSO SEI: " + this.processo.sei, 15, 38);
             doc.text("SALA / ESPAÇO: " + this.processo.sala, 15, 43);
 
+            var startY = 48;
+
+            if (this.fotoArea) {
+                doc.setFontSize(11);
+                doc.setFont("helvetica", "bold");
+                doc.text("Área de Transferência:", 15, startY + 2);
+                try {
+                    doc.addImage(this.fotoArea, "JPEG", 15, startY + 5, 80, 60);
+                    startY = startY + 70;
+                } catch(e) {
+                    startY = startY + 5;
+                }
+            }
+
             var tableBody = this.itens.map(function(i) {
                 return [
                     { content: "", styles: { minCellHeight: 40 } },
@@ -198,7 +226,7 @@ function app() {
             });
 
             doc.autoTable({
-                startY: 48,
+                startY: startY,
                 head: [["Foto", "Detalhes"]],
                 body: tableBody,
                 columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
