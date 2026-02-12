@@ -150,12 +150,12 @@ function app() {
 
         salvarItem: function() {
             var self = this;
-            var patrimonioFinal = this.item.semPatrimonio ? "Sem número" : this.item.patrimonio;
-            if (!patrimonioFinal) { alert("Informe o Nº Patrimônio."); return; }
+            if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
 
-            if (!this.item.semPatrimonio) {
+            // Verifica se patrimônio já existe no processo (ignora "Sem número")
+            if (this.item.patrimonio !== "Sem número") {
                 var patrimonioExiste = this.itens.some(function(i) {
-                    return String(i.patrimonio) === String(patrimonioFinal);
+                    return String(i.patrimonio) === String(self.item.patrimonio);
                 });
                 if (patrimonioExiste) {
                     alert("Este patrimônio já foi cadastrado neste processo.");
@@ -170,16 +170,15 @@ function app() {
             if (!this.item.foto) { alert("Capture a Foto."); return; }
 
             this.loading = true;
-            var itemParaSalvar = {
-                patrimonio: patrimonioFinal,
-                descricao: this.item.descricao,
-                tamanho: this.item.tamanho,
-                viavel: this.item.viavel,
-                bvm: this.item.bvm,
-                foto: this.item.foto
-            };
-            API.salvarItem(itemParaSalvar, this.processoId).then(function() {
-                self.itens.unshift(itemParaSalvar);
+            API.salvarItem(this.item, this.processoId).then(function() {
+                self.itens.unshift({
+                    patrimonio: self.item.patrimonio,
+                    descricao: self.item.descricao,
+                    tamanho: self.item.tamanho,
+                    viavel: self.item.viavel,
+                    bvm: self.item.bvm,
+                    foto: self.item.foto
+                });
                 self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false };
                 self.patrimonioNaoEncontrado = false;
                 self.loading = false;
@@ -226,47 +225,62 @@ function app() {
             var doc = new jsPDF("p", "mm", "a4");
             var pageWidth = doc.internal.pageSize.getWidth();
             var itensParaPDF = this.itens.slice();
+            var processo = this.processo;
+            var ITENS_POR_PAGINA = 5;
 
-            doc.setFontSize(14);
-            doc.setFont("helvetica", "bold");
-            doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "normal");
-            doc.text(this.processo.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
-            doc.line(15, 30, pageWidth - 15, 30);
-            doc.text("PROCESSO SEI: " + this.processo.sei, 15, 38);
-            doc.text("SALA / ESPAÇO: " + this.processo.sala, 15, 43);
+            function desenharCabecalho() {
+                doc.setFontSize(14);
+                doc.setFont("helvetica", "bold");
+                doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
+                doc.setFontSize(10);
+                doc.setFont("helvetica", "normal");
+                doc.text(processo.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
+                doc.line(15, 30, pageWidth - 15, 30);
+                doc.text("PROCESSO SEI: " + processo.sei, 15, 38);
+                doc.text("SALA / ESPAÇO: " + processo.sala, 15, 43);
+            }
 
-            var tableBody = itensParaPDF.map(function(i) {
-                return [
-                    { content: "", styles: { minCellHeight: 40 } },
-                    "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
-                ];
-            });
+            for (var p = 0; p < itensParaPDF.length; p += ITENS_POR_PAGINA) {
+                if (p > 0) doc.addPage();
+                desenharCabecalho();
 
-            doc.autoTable({
-                startY: 48,
-                head: [["Foto", "Detalhes"]],
-                body: tableBody,
-                columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
-                styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
-                didDrawCell: function(data) {
-                    if (data.column.index === 0 && data.cell.section === "body") {
-                        var item = itensParaPDF[data.row.index];
-                        if (item && item.foto) {
-                            try {
-                                var cellW = data.cell.width - 4;
-                                var cellH = data.cell.height - 4;
-                                var size = Math.min(cellW, cellH);
-                                var x = data.cell.x + 2 + (cellW - size) / 2;
-                                var y = data.cell.y + 2 + (cellH - size) / 2;
-                                doc.addImage(item.foto, "JPEG", x, y, size, size);
-                            } catch(e) {}
-                        }
-                    }
-                }
-            });
-            doc.save("Recolhimento_" + this.processo.sei + ".pdf");
+                var chunk = itensParaPDF.slice(p, p + ITENS_POR_PAGINA);
+                var fotos = [];
+                var tableBody = chunk.map(function(i) {
+                    fotos.push(i.foto || "");
+                    return [
+                        { content: "", styles: { minCellHeight: 40 } },
+                        "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: 48,
+                    head: [["Foto", "Detalhes"]],
+                    body: tableBody,
+                    columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
+                    styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
+                    didDrawCell: function(fotos) {
+                        return function(data) {
+                            if (data.column.index === 0 && data.cell.section === "body") {
+                                var img = fotos[data.row.index];
+                                if (img) {
+                                    try {
+                                        var cellW = data.cell.width - 4;
+                                        var cellH = data.cell.height - 4;
+                                        var size = Math.min(cellW, cellH);
+                                        var x = data.cell.x + 2 + (cellW - size) / 2;
+                                        var y = data.cell.y + 2 + (cellH - size) / 2;
+                                        doc.addImage(img, "JPEG", x, y, size, size);
+                                    } catch(e) {}
+                                }
+                            }
+                        };
+                    }(fotos)
+                });
+            }
+
+            doc.save("Recolhimento_" + processo.sei + ".pdf");
         }
     };
 }
