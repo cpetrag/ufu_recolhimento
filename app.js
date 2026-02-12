@@ -103,23 +103,36 @@ function app() {
 
         colarFoto: function(e) {
             var self = this;
-            var files = e.clipboardData.files;
-            if (files.length > 0) {
-                API.processarFoto(files[0]).then(function(foto) {
-                    self.item.foto = foto;
-                });
-            } else {
-                alert("Nenhuma imagem encontrada. Copie uma imagem primeiro (Ctrl+C) e depois cole aqui (Ctrl+V).");
+            var items = e.clipboardData && e.clipboardData.items;
+            if (!items) {
+                alert("Navegador não suporta colar imagens.");
+                return;
             }
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf("image") !== -1) {
+                    var blob = items[i].getAsFile();
+                    if (blob) {
+                        API.processarFoto(blob).then(function(foto) {
+                            self.item.foto = foto;
+                        });
+                        return;
+                    }
+                }
+            }
+            alert("Nenhuma imagem encontrada. Copie uma imagem primeiro e depois cole aqui (Ctrl+V).");
         },
 
         colarFotoBtn: function() {
             var self = this;
+            if (!navigator.clipboard || !navigator.clipboard.read) {
+                alert("Clique nesta área e use Ctrl+V para colar a imagem.");
+                return;
+            }
             navigator.clipboard.read().then(function(items) {
                 for (var i = 0; i < items.length; i++) {
                     var types = items[i].types;
                     for (var j = 0; j < types.length; j++) {
-                        if (types[j].startsWith("image/")) {
+                        if (types[j].indexOf("image") !== -1) {
                             items[i].getType(types[j]).then(function(blob) {
                                 API.processarFoto(blob).then(function(foto) {
                                     self.item.foto = foto;
@@ -129,9 +142,9 @@ function app() {
                         }
                     }
                 }
-                alert("Nenhuma imagem encontrada na área de transferência.");
+                alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
             }).catch(function() {
-                alert("Não foi possível acessar. Clique na área e use Ctrl+V para colar.");
+                alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V.");
             });
         },
 
