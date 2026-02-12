@@ -101,6 +101,28 @@ function app() {
             }
         },
 
+        colarFoto: function() {
+            var self = this;
+            navigator.clipboard.read().then(function(items) {
+                for (var i = 0; i < items.length; i++) {
+                    var types = items[i].types;
+                    for (var j = 0; j < types.length; j++) {
+                        if (types[j].startsWith("image/")) {
+                            items[i].getType(types[j]).then(function(blob) {
+                                API.processarFoto(blob).then(function(foto) {
+                                    self.item.foto = foto;
+                                });
+                            });
+                            return;
+                        }
+                    }
+                }
+                alert("Nenhuma imagem encontrada na área de transferência.");
+            }).catch(function() {
+                alert("Não foi possível acessar a área de transferência. Verifique as permissões do navegador.");
+            });
+        },
+
         salvarItem: function() {
             var self = this;
             if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
