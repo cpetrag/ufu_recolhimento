@@ -150,12 +150,13 @@ function app() {
 
         salvarItem: function() {
             var self = this;
-            if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
+            var patrimonioFinal = this.item.semPatrimonio ? "Sem número" : this.item.patrimonio;
+            if (!patrimonioFinal) { alert("Informe o Nº Patrimônio."); return; }
 
-            // Verifica se patrimônio já existe no processo (ignora "Sem número")
-            if (this.item.patrimonio !== "Sem número") {
+            // Verifica duplicata só quando tem patrimônio real
+            if (!this.item.semPatrimonio) {
                 var patrimonioExiste = this.itens.some(function(i) {
-                    return String(i.patrimonio) === String(self.item.patrimonio);
+                    return String(i.patrimonio) === String(patrimonioFinal);
                 });
                 if (patrimonioExiste) {
                     alert("Este patrimônio já foi cadastrado neste processo.");
@@ -170,15 +171,16 @@ function app() {
             if (!this.item.foto) { alert("Capture a Foto."); return; }
 
             this.loading = true;
-            API.salvarItem(this.item, this.processoId).then(function() {
-                self.itens.unshift({
-                    patrimonio: self.item.patrimonio,
-                    descricao: self.item.descricao,
-                    tamanho: self.item.tamanho,
-                    viavel: self.item.viavel,
-                    bvm: self.item.bvm,
-                    foto: self.item.foto
-                });
+            var itemParaSalvar = {
+                patrimonio: patrimonioFinal,
+                descricao: this.item.descricao,
+                tamanho: this.item.tamanho,
+                viavel: this.item.viavel,
+                bvm: this.item.bvm,
+                foto: this.item.foto
+            };
+            API.salvarItem(itemParaSalvar, this.processoId).then(function() {
+                self.itens.unshift(itemParaSalvar);
                 self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false };
                 self.patrimonioNaoEncontrado = false;
                 self.loading = false;
