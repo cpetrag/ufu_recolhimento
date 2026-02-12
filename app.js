@@ -225,6 +225,7 @@ function app() {
             var jsPDF = window.jspdf.jsPDF;
             var doc = new jsPDF("p", "mm", "a4");
             var pageWidth = doc.internal.pageSize.getWidth();
+            var itensParaPDF = this.itens.slice();
 
             doc.setFontSize(14);
             doc.setFont("helvetica", "bold");
@@ -236,9 +237,7 @@ function app() {
             doc.text("PROCESSO SEI: " + this.processo.sei, 15, 38);
             doc.text("SALA / ESPAÇO: " + this.processo.sala, 15, 43);
 
-            var fotos = [];
-            var tableBody = this.itens.map(function(i) {
-                fotos.push(i.foto || "");
+            var tableBody = itensParaPDF.map(function(i) {
                 return [
                     { content: "", styles: { minCellHeight: 40 } },
                     "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
@@ -253,14 +252,16 @@ function app() {
                 styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
                 didDrawCell: function(data) {
                     if (data.column.index === 0 && data.cell.section === "body") {
-                        var img = fotos[data.row.index];
-                        if (img) {
-                            var cellW = data.cell.width - 4;
-                            var cellH = data.cell.height - 4;
-                            var size = Math.min(cellW, cellH);
-                            var x = data.cell.x + 2 + (cellW - size) / 2;
-                            var y = data.cell.y + 2 + (cellH - size) / 2;
-                            doc.addImage(img, "JPEG", x, y, size, size);
+                        var item = itensParaPDF[data.row.index];
+                        if (item && item.foto) {
+                            try {
+                                var cellW = data.cell.width - 4;
+                                var cellH = data.cell.height - 4;
+                                var size = Math.min(cellW, cellH);
+                                var x = data.cell.x + 2 + (cellW - size) / 2;
+                                var y = data.cell.y + 2 + (cellH - size) / 2;
+                                doc.addImage(item.foto, "JPEG", x, y, size, size);
+                            } catch(e) {}
                         }
                     }
                 }
