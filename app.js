@@ -1,3 +1,6 @@
+// URL da base de patrimônio (CSV) - hospedado no Netlify
+var BASE_CSV_URL = "https://custodioufu.netlify.app/base.csv";
+
 function app() {
     return {
         aba: "processo",
@@ -5,6 +8,9 @@ function app() {
         blocos: [],
         itens: [],
         baseCSV: [],
+        csvCarregando: true,
+        csvCarregado: false,
+        csvErro: null,
         unidades_db: [],
         processoId: null,
         loading: false,
@@ -18,12 +24,65 @@ function app() {
             var self = this;
             API.carregarCampus().then(function(data) { self.campus = data; });
             API.carregarUnidades().then(function(data) { self.unidades_db = data; });
-            Papa.parse("https://custodioufu.netlify.app/base.csv", {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(r) { self.baseCSV = r.data; }
-            });
+            this.carregarBaseCSV();
+        },
+
+        carregarBaseCSV: function() {
+            var self = this;
+            this.csvCarregando = true;
+            this.csvCarregado = false;
+            this.csvErro = null;
+            fetch(BASE_CSV_URL)
+                .then(function(res) {
+                    if (!res.ok) throw new Error("CSV não encontrado: " + res.status);
+                    return res.text();
+                })
+                .then(function(texto) {
+                    var r = Papa.parse(texto, { header: true, skipEmptyLines: true });
+                    if (r.errors.length > 0) throw new Error("Erro ao ler CSV");
+                    var raw = r.data;
+                    var campos = r.meta.fields || (raw[0] ? Object.keys(raw[0]) : []);
+                    var map = self._mapearColunas(campos);
+                    self.baseCSV = raw.map(function(linha) {
+                        return {
+                            NroPatrimonio: self._valor(linha, map.NroPatrimonio),
+                            CodioBarra: self._valor(linha, map.CodioBarra),
+                            DescricaoBem: self._valor(linha, map.DescricaoBem)
+                        };
+                    }).filter(function(l) { return l.NroPatrimonio !== undefined || l.CodioBarra !== undefined; });
+                    self.csvCarregando = false;
+                    self.csvCarregado = true;
+                })
+                .catch(function(err) {
+                    self.csvCarregando = false;
+                    self.csvErro = err && err.message ? err.message : "Erro ao carregar base";
+                });
+        },
+
+        _mapearColunas: function(campos) {
+            var nro = ["NroPatrimonio", "Nro Patrimônio", "Patrimônio", "Numero", "Número", "Nro"];
+            var cod = ["CodioBarra", "CodigoBarra", "Código de Barras", "Codigo Barras"];
+            var desc = ["DescricaoBem", "Descrição do Bem", "Descricao", "Descrição"];
+            function achar(lista) {
+                for (var i = 0; i < campos.length; i++) {
+                    var c = (campos[i] || "").replace(/\uFEFF/g, "").trim();
+                    for (var j = 0; j < lista.length; j++) if (c === lista[j]) return campos[i];
+                }
+                for (var k = 0; k < campos.length; k++) {
+                    var key = (campos[k] || "").replace(/\uFEFF/g, "").trim();
+                    if (/patrim|numero|nro/i.test(key)) return campos[k];
+                    if (/codigo|barra/i.test(key)) return campos[k];
+                    if (/descri/i.test(key)) return campos[k];
+                }
+                return campos[0] || null;
+            }
+            return { NroPatrimonio: achar(nro) || campos[0], CodioBarra: achar(cod) || campos[1], DescricaoBem: achar(desc) || campos[2] };
+        },
+
+        _valor: function(linha, chave) {
+            if (!chave) return undefined;
+            var v = linha[chave];
+            return v !== undefined && v !== null ? String(v).trim() : undefined;
         },
 
         carregarBlocos: function() {
@@ -81,13 +140,20 @@ function app() {
                 this.patrimonioNaoEncontrado = false;
                 return;
             }
+            if (!this.csvCarregado || this.baseCSV.length === 0) {
+                this.patrimonioNaoEncontrado = false;
+                return;
+            }
             var vNum = parseInt(v, 10);
             var achado = this.baseCSV.find(function(i) {
-                var nroPat = parseInt(i.NroPatrimonio, 10);
-                var codBar = parseInt(i.CodioBarra, 10);
-                return nroPat === vNum || (codBar !== 0 && codBar === vNum);
+                var nroPat = parseInt(String(i.NroPatrimonio || "").trim(), 10);
+                var codBar = parseInt(String(i.CodioBarra || "").trim(), 10);
+                if (!isNaN(nroPat) && nroPat === vNum) return true;
+                if (!isNaN(codBar) && codBar !== 0 && codBar === vNum) return true;
+                if (String(i.NroPatrimonio || "").trim() === v || String(i.CodioBarra || "").trim() === v) return true;
+                return false;
             });
-            this.item.descricao = achado ? achado.DescricaoBem : "";
+            this.item.descricao = achado ? (achado.DescricaoBem || "") : "";
             this.patrimonioNaoEncontrado = !achado;
         },
 
@@ -284,4 +350,3 @@ function app() {
         }
     };
 }
-
