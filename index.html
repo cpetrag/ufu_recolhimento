@@ -76,8 +76,11 @@
 
         <div x-show="aba === 'itens'" x-cloak class="space-y-4">
             <div class="bg-white p-4 rounded-xl shadow border-t-4 border-blue-500">
+                <p x-show="csvCarregando" class="text-xs text-amber-600 font-bold mb-2">⏳ Carregando base de patrimônio...</p>
+                <p x-show="csvCarregado && !csvCarregando" class="text-xs text-slate-500 mb-2">✓ Base em memória (<span x-text="baseCSV.length"></span> itens)</p>
+                <p x-show="csvErro" class="text-xs text-red-600 font-bold mb-2">❌ <span x-text="csvErro"></span> <button type="button" class="underline ml-1" x-on:click="carregarBaseCSV()">Tentar de novo</button></p>
                 <div class="flex gap-2 mb-3 items-center">
-                    <input class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio">
+                    <input class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio || !csvCarregado">
                     <label class="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase whitespace-nowrap cursor-pointer bg-red-50 border border-red-200 rounded-lg px-3 py-3">
                         <input type="checkbox" x-model="item.semPatrimonio" x-on:change="if(item.semPatrimonio) { item.patrimonio = 'Sem número'; item.descricao = ''; patrimonioNaoEncontrado = false; $nextTick(function(){ $refs.campoDescricao.focus(); }); } else { item.patrimonio = ''; }"> Sem patrimônio
                     </label>
