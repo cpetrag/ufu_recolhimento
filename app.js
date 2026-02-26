@@ -18,7 +18,7 @@ function app() {
             var self = this;
             API.carregarCampus().then(function(data) { self.campus = data; });
             API.carregarUnidades().then(function(data) { self.unidades_db = data; });
-            Papa.parse("https://ahzeyywnngbbxrqtjlue.supabase.co/storage/v1/object/public/arquivos/base.csv", {
+            Papa.parse("https://custodioufu.netlify.app/base.csv", {
                 download: true,
                 header: true,
                 skipEmptyLines: true,
@@ -284,3 +284,4 @@ function app() {
         }
     };
 }
+
