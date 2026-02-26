@@ -190,7 +190,8 @@ function app() {
         carregarBaseCSV: function() {
             var self = this;
             this.csvCarregando = true; this.csvCarregado = false; this.csvErro = null;
-            fetch(BASE_CSV_URL).then(function(res) { if (!res.ok) throw new Error("CSV não encontrado: " + res.status); return res.text(); })
+            function fetchText(url) { return fetch(url).then(function(res) { if (!res.ok) throw new Error("CSV não encontrado: " + res.status); return res.text(); }); }
+            fetchText(BASE_CSV_URL).catch(function() { return fetchText("https://api.allorigins.win/raw?url=" + encodeURIComponent(BASE_CSV_URL)); })
                 .then(function(texto) {
                     var r = Papa.parse(texto, { header: true, skipEmptyLines: true });
                     if (r.errors.length > 0) throw new Error("Erro ao ler CSV");
