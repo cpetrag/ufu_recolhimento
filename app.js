@@ -13,6 +13,18 @@ function app() {
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
         // aba processos
         processosList: [], processosCarregando: false, processosErro: null, processosFiltro: "",
+        processosFiltroAno: "",
+        processosAnosDisponiveis: [],
+        processosSelecionados: [],
+        processosDigitados: "",
+        exportandoSelecionados: false,
+        processosFiltroAno: "",
+        processosAnos: [],
+        selecionados: [],
+        seiManual: "",
+        exportandoSelecionados: false,
+        // busca global
+        buscaGlobal: "", buscaGlobalResultados: [], buscaGlobalCarregando: false, buscaGlobalFeita: false,
         // edição de item
         itemEditando: null,
         itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
@@ -270,8 +282,17 @@ function app() {
         carregarListaProcessos: function() {
             var self = this;
             this.processosCarregando = true; this.processosErro = null;
+            this.selecionados = [];
             API.listarProcessos().then(function(data) {
-                self.processosList = data; self.processosCarregando = false;
+                self.processosList = data;
+                self.processosCarregando = false;
+                // Extrair anos únicos dos SEIs (formato: XXXXX.XXXXXX/AAAA-DD)
+                var anos = {};
+                data.forEach(function(p) {
+                    var m = (p.sei || "").match(/\/(\d{4})-/);
+                    if (m) anos[m[1]] = true;
+                });
+                self.processosAnos = Object.keys(anos).sort().reverse();
             }).catch(function() {
                 self.processosErro = "Erro ao carregar processos."; self.processosCarregando = false;
             });
@@ -279,11 +300,18 @@ function app() {
 
         get processosFiltrados() {
             var f = (this.processosFiltro || "").toLowerCase().trim();
-            if (!f) return this.processosList;
+            var ano = (this.processosFiltroAno || "").trim();
             return this.processosList.filter(function(p) {
-                return (p.sei || "").toLowerCase().includes(f) ||
-                       (p.pro_reitoria_unidade || "").toLowerCase().includes(f) ||
-                       (p.sala || "").toLowerCase().includes(f);
+                var passaTexto = !f || (
+                    (p.sei || "").toLowerCase().includes(f) ||
+                    (p.pro_reitoria_unidade || "").toLowerCase().includes(f) ||
+                    (p.sala || "").toLowerCase().includes(f)
+                );
+                var passaAno = !ano || (function() {
+                    var m = (p.sei || "").match(/\/(\d{4})-/);
+                    return m && m[1] === ano;
+                })();
+                return passaTexto && passaAno;
             });
         },
 
@@ -310,7 +338,223 @@ function app() {
             }).catch(function() { alert("Erro ao excluir processo."); });
         },
 
-        exportarCSVTodos: function() {
+        // =============================================
+        // SELEÇÃO MÚLTIPLA
+        // =============================================
+        toggleSelecionado: function(id) {
+            var idx = this.selecionados.indexOf(id);
+            if (idx === -1) this.selecionados.push(id);
+            else this.selecionados.splice(idx, 1);
+        },
+
+        isSelecionado: function(id) {
+            return this.selecionados.indexOf(id) !== -1;
+        },
+
+        selecionarTodosFiltrados: function() {
+            var self = this;
+            var ids = this.processosFiltrados.map(function(p) { return p.id; });
+            if (ids.every(function(id) { return self.selecionados.indexOf(id) !== -1; })) {
+                // todos já selecionados → desmarcar
+                this.selecionados = this.selecionados.filter(function(id) { return ids.indexOf(id) === -1; });
+            } else {
+                ids.forEach(function(id) {
+                    if (self.selecionados.indexOf(id) === -1) self.selecionados.push(id);
+                });
+            }
+        },
+
+        adicionarSeiManual: function() {
+            var self = this;
+            var partes = this.seiManual.split(/[,;
+]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+            partes.forEach(function(sei) {
+                var proc = self.processosList.find(function(p) { return p.sei === sei; });
+                if (proc && self.selecionados.indexOf(proc.id) === -1) {
+                    self.selecionados.push(proc.id);
+                }
+            });
+            this.seiManual = "";
+        },
+
+        get processosSelecionados() {
+            var self = this;
+            return this.processosList.filter(function(p) { return self.selecionados.indexOf(p.id) !== -1; });
+        },
+
+        exportarCSVSelecionados: function() {
+            this._exportarCSV(this.processosSelecionados);
+        },
+
+        exportarExcelSelecionados: function() {
+            this._exportarExcel(this.processosSelecionados);
+        },
+
+        exportarPDFConsolidadoSelecionados: function() {
+            this._exportarPDFConsolidado(this.processosSelecionados);
+        },
+
+        exportarPDFIndividualSelecionados: function() {
+            var self = this;
+            var procs = this.processosSelecionados;
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            procs.forEach(function(proc) { self.exportarPDFProcesso(proc); });
+        },
+
+        get processosSelecionadosLista() {
+            var self = this;
+            var porDigitacao = (this.processosDigitados || "")
+                .split(/[,;\n]+/)
+                .map(function(s) { return s.trim(); })
+                .filter(function(s) { return s.length > 0; });
+            var todos = this.processosList.filter(function(p) {
+                return self.processosSelecionados.indexOf(p.id) !== -1 ||
+                       porDigitacao.some(function(d) { return (p.sei||"").includes(d); });
+            });
+            var seen = {};
+            return todos.filter(function(p) {
+                if (seen[p.id]) return false;
+                seen[p.id] = true; return true;
+            });
+        },
+
+        toggleSelecionarProcesso: function(id) {
+            var idx = this.processosSelecionados.indexOf(id);
+            if (idx === -1) this.processosSelecionados.push(id);
+            else this.processosSelecionados.splice(idx, 1);
+        },
+
+        limparSelecao: function() {
+            this.processosSelecionados = [];
+            this.processosDigitados = "";
+        },
+
+                exportarSelecionadosCSV: function() {
+            var procs = this.processosSelecionadosLista;
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            var todas = [];
+            Promise.all(procs.map(function(p) {
+                return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
+                    itens.forEach(function(i) {
+                        todas.push({
+                            SEI: p.sei, Unidade: p.pro_reitoria_unidade || "", Sala: p.sala || "",
+                            Patrimonio: i.patrimonio, Descricao: i.descricao || "",
+                            Tamanho: i.tamanho || "", Viavel: i.viavel ? "Sim" : "Não",
+                            BVM: i.bvm ? "Sim" : "Não", Situacao: i.situacao || "Ativo",
+                            Enviado_SharePoint: i.enviado_sharepoint ? "Sim" : "Não"
+                        });
+                    });
+                });
+            })).then(function() {
+                var csv = Papa.unparse(todas);
+                var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a"); a.href = url;
+                a.download = "Selecionados_" + new Date().toISOString().substring(0,10) + ".csv";
+                a.click(); URL.revokeObjectURL(url);
+            });
+        },
+
+        exportarSelecionadosExcel: function() {
+            var procs = this.processosSelecionadosLista;
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            var todas = [];
+            Promise.all(procs.map(function(p) {
+                return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
+                    itens.forEach(function(i) {
+                        todas.push([p.sei, p.pro_reitoria_unidade || "", p.sala || "",
+                            i.patrimonio, i.descricao || "", i.tamanho || "",
+                            i.viavel ? "Sim" : "Não", i.bvm ? "Sim" : "Não",
+                            i.situacao || "Ativo", i.enviado_sharepoint ? "Sim" : "Não"]);
+                    });
+                });
+            })).then(function() {
+                var XLS = window.XLSX;
+                var wb = XLS.utils.book_new();
+                var cab = [["SEI","Unidade","Sala","Patrimônio","Descrição","Tamanho","Viável","BVM","Situação","Enviado SharePoint"]];
+                var ws = XLS.utils.aoa_to_sheet(cab.concat(todas));
+                ws["!cols"] = [22,30,30,16,40,10,8,8,16,18].map(function(w){return{wch:w};});
+                XLS.utils.book_append_sheet(wb, ws, "Selecionados");
+                XLS.writeFile(wb, "Selecionados_" + new Date().toISOString().substring(0,10) + ".xlsx");
+            });
+        },
+
+        exportarSelecionadosPDFConsolidado: function() {
+            var self = this;
+            var procs = this.processosSelecionadosLista;
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            this.exportandoSelecionados = true;
+            var jsPDF = window.jspdf.jsPDF;
+            var doc = new jsPDF("p", "mm", "a4");
+            var pageWidth = doc.internal.pageSize.getWidth();
+            var ITENS_POR_PAGINA = 5;
+            var primeiro = true;
+            function processarProximo(idx) {
+                if (idx >= procs.length) {
+                    doc.save("Selecionados_Consolidado_" + new Date().toISOString().substring(0,10) + ".pdf");
+                    self.exportandoSelecionados = false; return;
+                }
+                var proc = procs[idx];
+                API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
+                    function cab() {
+                        doc.setFontSize(14); doc.setFont("helvetica", "bold");
+                        doc.text("Universidade Federal de Uberlândia", pageWidth/2, 15, {align:"center"});
+                        doc.setFontSize(10); doc.setFont("helvetica", "normal");
+                        doc.text(proc.pro_reitoria_unidade || "", pageWidth/2, 21, {align:"center"});
+                        doc.line(15, 30, pageWidth-15, 30);
+                        doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
+                        doc.text("SALA / ESPAÇO: " + (proc.sala || ""), 15, 43);
+                    }
+                    if (itens.length === 0) {
+                        if (!primeiro) doc.addPage(); primeiro = false;
+                        cab(); doc.setFontSize(10); doc.text("Nenhum item registrado.", 15, 55);
+                        processarProximo(idx+1); return;
+                    }
+                    for (var p = 0; p < itens.length; p += ITENS_POR_PAGINA) {
+                        if (!primeiro || p > 0) doc.addPage(); primeiro = false;
+                        cab();
+                        var chunk = itens.slice(p, p+ITENS_POR_PAGINA);
+                        var fotos = [];
+                        var body = chunk.map(function(i) {
+                            fotos.push(i.foto || "");
+                            return [{content:"",styles:{minCellHeight:40}},
+                                "Patrimônio: "+i.patrimonio+"\nDescrição: "+i.descricao+
+                                "\nTamanho: "+(i.tamanho||"")+"\nViável: "+(i.viavel?"Sim":"Não")+"\nBVM: "+(i.bvm?"Sim":"Não")];
+                        });
+                        doc.autoTable({startY:48, head:[["Foto","Detalhes"]], body:body,
+                            columnStyles:{0:{cellWidth:45},1:{cellWidth:"auto"}},
+                            styles:{fontSize:10.5,valign:"middle",cellPadding:4},
+                            didDrawCell: function(fc){ return function(data) {
+                                if (data.column.index===0 && data.cell.section==="body") {
+                                    var img=fc[data.row.index];
+                                    if(img){try{var cw=data.cell.width-4,ch=data.cell.height-4,s=Math.min(cw,ch);
+                                        doc.addImage(img,"JPEG",data.cell.x+2+(cw-s)/2,data.cell.y+2+(ch-s)/2,s,s);
+                                    }catch(e){}}
+                                }
+                            };}(fotos)});
+                    }
+                    processarProximo(idx+1);
+                });
+            }
+            processarProximo(0);
+        },
+
+        exportarSelecionadosPDFIndividual: function() {
+            var self = this;
+            var procs = this.processosSelecionadosLista;
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            this.exportandoSelecionados = true;
+            var idx = 0;
+            function proximo() {
+                if (idx >= procs.length) { self.exportandoSelecionados = false; return; }
+                self.exportarPDFProcesso(procs[idx]);
+                idx++;
+                setTimeout(proximo, 800);
+            }
+            proximo();
+        },
+
+                exportarCSVTodos: function() {
             var procs = this.processosFiltrados;
             if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
             var todas = [];
@@ -373,9 +617,10 @@ function app() {
             });
         },
 
-        exportarPDFConsolidado: function() {
+        exportarPDFConsolidado: function() { this._exportarPDFConsolidado(this.processosFiltrados); },
+
+        _exportarPDFConsolidado: function(procs) {
             var self = this;
-            var procs = this.processosFiltrados;
             if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
             this.exportando = true;
             var jsPDF = window.jspdf.jsPDF;
@@ -441,7 +686,44 @@ function app() {
         // =============================================
         // ABA DOCUMENTO / PDF
         // =============================================
-        carregarProcessoPDF: function() {
+        executarBuscaGlobal: function() {
+            var self = this;
+            var termo = (this.buscaGlobal || "").trim();
+            if (!termo || termo.length < 2) return;
+            this.buscaGlobalCarregando = true;
+            this.buscaGlobalFeita = false;
+            this.buscaGlobalResultados = [];
+            var q1 = API.db.from("patrimonios")
+                .select("id, patrimonio, descricao, foto, situacao, tamanho, viavel, bvm, processo_id")
+                .or("patrimonio.ilike.%" + termo + "%,descricao.ilike.%" + termo + "%")
+                .limit(50);
+            var q2 = API.db.from("processos")
+                .select("id, sei, sala, pro_reitoria_unidade, campus_id")
+                .or("sei.ilike.%" + termo + "%,sala.ilike.%" + termo + "%,pro_reitoria_unidade.ilike.%" + termo + "%")
+                .limit(50);
+            Promise.all([q1, q2]).then(function(results) {
+                var itensDiretos = results[0].data || [];
+                var processosDiretos = results[1].data || [];
+                var procIdsViaItens = itensDiretos.map(function(i) { return i.processo_id; });
+                var procIdsDiretos = processosDiretos.map(function(p) { return p.id; });
+                var todosIds = Array.from(new Set(procIdsViaItens.concat(procIdsDiretos)));
+                if (todosIds.length === 0) {
+                    self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true; return;
+                }
+                API.db.from("processos").select("*").in("id", todosIds).then(function(r) {
+                    var processos = r.data || [];
+                    self.buscaGlobalResultados = processos.map(function(proc) {
+                        var itensDoProc = itensDiretos.filter(function(i) { return i.processo_id === proc.id; });
+                        return { processo: proc, itens: itensDoProc };
+                    });
+                    self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true;
+                });
+            }).catch(function() {
+                self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true;
+            });
+        },
+
+                carregarProcessoPDF: function() {
             var self = this;
             return API.buscarProcessoPorSEI(this.buscaSei).then(function(proc) {
                 if (!proc) { alert("Processo não encontrado."); return null; }
@@ -511,74 +793,3 @@ function app() {
         }
     };
 }
-
-// PATCH: busca global - adicionar ao objeto retornado por app()
-// Injeta as propriedades e métodos no prototype via mixin
-(function() {
-    var _original = app;
-    app = function() {
-        var obj = _original();
-        
-        obj.buscaGlobal = "";
-        obj.buscaGlobalResultados = [];
-        obj.buscaGlobalCarregando = false;
-        obj.buscaGlobalFeita = false;
-
-        obj.executarBuscaGlobal = function() {
-            var self = this;
-            var termo = (this.buscaGlobal || "").trim();
-            if (!termo || termo.length < 2) return;
-            this.buscaGlobalCarregando = true;
-            this.buscaGlobalFeita = false;
-            this.buscaGlobalResultados = [];
-
-            // Busca em patrimonios: patrimonio + descricao
-            var q1 = API.db.from("patrimonios")
-                .select("id, patrimonio, descricao, foto, situacao, tamanho, viavel, bvm, processo_id")
-                .or("patrimonio.ilike.%" + termo + "%,descricao.ilike.%" + termo + "%")
-                .limit(50);
-
-            // Busca em processos: sei + sala + pro_reitoria_unidade
-            var q2 = API.db.from("processos")
-                .select("id, sei, sala, pro_reitoria_unidade, campus_id")
-                .or("sei.ilike.%" + termo + "%,sala.ilike.%" + termo + "%,pro_reitoria_unidade.ilike.%" + termo + "%")
-                .limit(50);
-
-            Promise.all([q1, q2]).then(function(results) {
-                var itensDiretos = results[0].data || [];
-                var processosDiretos = results[1].data || [];
-
-                // IDs de processos encontrados pelos dois caminhos
-                var procIdsViaItens = itensDiretos.map(function(i) { return i.processo_id; });
-                var procIdsDiretos = processosDiretos.map(function(p) { return p.id; });
-                var todosIds = Array.from(new Set(procIdsViaItens.concat(procIdsDiretos)));
-
-                if (todosIds.length === 0) {
-                    self.buscaGlobalCarregando = false;
-                    self.buscaGlobalFeita = true;
-                    return;
-                }
-
-                // Carregar processos completos
-                API.db.from("processos").select("*").in("id", todosIds).then(function(r) {
-                    var processos = r.data || [];
-
-                    // Montar resultados: para cada processo, quais itens batem
-                    var resultados = processos.map(function(proc) {
-                        var itensDoProc = itensDiretos.filter(function(i) { return i.processo_id === proc.id; });
-                        return { processo: proc, itens: itensDoProc };
-                    });
-
-                    self.buscaGlobalResultados = resultados;
-                    self.buscaGlobalCarregando = false;
-                    self.buscaGlobalFeita = true;
-                });
-            }).catch(function() {
-                self.buscaGlobalCarregando = false;
-                self.buscaGlobalFeita = true;
-            });
-        };
-
-        return obj;
-    };
-})();
