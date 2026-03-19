@@ -511,3 +511,74 @@ function app() {
         }
     };
 }
+
+// PATCH: busca global - adicionar ao objeto retornado por app()
+// Injeta as propriedades e métodos no prototype via mixin
+(function() {
+    var _original = app;
+    app = function() {
+        var obj = _original();
+        
+        obj.buscaGlobal = "";
+        obj.buscaGlobalResultados = [];
+        obj.buscaGlobalCarregando = false;
+        obj.buscaGlobalFeita = false;
+
+        obj.executarBuscaGlobal = function() {
+            var self = this;
+            var termo = (this.buscaGlobal || "").trim();
+            if (!termo || termo.length < 2) return;
+            this.buscaGlobalCarregando = true;
+            this.buscaGlobalFeita = false;
+            this.buscaGlobalResultados = [];
+
+            // Busca em patrimonios: patrimonio + descricao
+            var q1 = API.db.from("patrimonios")
+                .select("id, patrimonio, descricao, foto, situacao, tamanho, viavel, bvm, processo_id")
+                .or("patrimonio.ilike.%" + termo + "%,descricao.ilike.%" + termo + "%")
+                .limit(50);
+
+            // Busca em processos: sei + sala + pro_reitoria_unidade
+            var q2 = API.db.from("processos")
+                .select("id, sei, sala, pro_reitoria_unidade, campus_id")
+                .or("sei.ilike.%" + termo + "%,sala.ilike.%" + termo + "%,pro_reitoria_unidade.ilike.%" + termo + "%")
+                .limit(50);
+
+            Promise.all([q1, q2]).then(function(results) {
+                var itensDiretos = results[0].data || [];
+                var processosDiretos = results[1].data || [];
+
+                // IDs de processos encontrados pelos dois caminhos
+                var procIdsViaItens = itensDiretos.map(function(i) { return i.processo_id; });
+                var procIdsDiretos = processosDiretos.map(function(p) { return p.id; });
+                var todosIds = Array.from(new Set(procIdsViaItens.concat(procIdsDiretos)));
+
+                if (todosIds.length === 0) {
+                    self.buscaGlobalCarregando = false;
+                    self.buscaGlobalFeita = true;
+                    return;
+                }
+
+                // Carregar processos completos
+                API.db.from("processos").select("*").in("id", todosIds).then(function(r) {
+                    var processos = r.data || [];
+
+                    // Montar resultados: para cada processo, quais itens batem
+                    var resultados = processos.map(function(proc) {
+                        var itensDoProc = itensDiretos.filter(function(i) { return i.processo_id === proc.id; });
+                        return { processo: proc, itens: itensDoProc };
+                    });
+
+                    self.buscaGlobalResultados = resultados;
+                    self.buscaGlobalCarregando = false;
+                    self.buscaGlobalFeita = true;
+                });
+            }).catch(function() {
+                self.buscaGlobalCarregando = false;
+                self.buscaGlobalFeita = true;
+            });
+        };
+
+        return obj;
+    };
+})();
