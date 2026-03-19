@@ -32,6 +32,9 @@
             <button x-on:click="aba = 'processos'; carregarListaProcessos()" x-bind:class="aba === 'processos' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>📋</span><span>Processos</span>
             </button>
+            <button x-on:click="aba = 'busca'" x-bind:class="aba === 'busca' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
+                <span>🔍</span><span>Busca</span>
+            </button>
         </div>
     </nav>
 
@@ -257,6 +260,96 @@
                             <button class="flex-1 bg-red-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="excluirProcessoLista(p)">🗑 Excluir</button>
                         </div>
                     </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- ================================ ABA BUSCA GLOBAL ================================ -->
+        <div x-show="aba === 'busca'" x-cloak class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-orange-500">
+                <h2 class="font-bold mb-3 text-orange-700 text-[10px] uppercase tracking-widest text-center">Busca Global</h2>
+                <p class="text-[10px] text-slate-400 text-center mb-3">Busca por patrimônio, descrição, SEI, sala, campus...</p>
+                <div class="flex gap-2">
+                    <input class="flex-1 p-3 border rounded-lg bg-orange-50 focus:ring-2 focus:ring-orange-400 outline-none text-sm"
+                           placeholder="Digite qualquer termo..."
+                           x-model="buscaGlobal"
+                           x-on:keydown.enter="executarBuscaGlobal()">
+                    <button class="bg-orange-500 text-white font-black px-4 rounded-lg shadow"
+                            x-on:click="executarBuscaGlobal()"
+                            x-bind:disabled="buscaGlobalCarregando">
+                        <span x-text="buscaGlobalCarregando ? '...' : '🔍'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Carregando -->
+            <div x-show="buscaGlobalCarregando" class="text-center text-sm text-slate-400 py-6">⏳ Buscando...</div>
+
+            <!-- Sem resultados -->
+            <div x-show="buscaGlobalFeita && !buscaGlobalCarregando && buscaGlobalResultados.length === 0"
+                 class="text-center text-sm text-slate-400 py-6">Nenhum resultado encontrado.</div>
+
+            <!-- Contador -->
+            <div x-show="buscaGlobalFeita && buscaGlobalResultados.length > 0"
+                 class="text-[10px] text-slate-400 text-center"
+                 x-text="buscaGlobalResultados.length + ' processo(s) encontrado(s)'"></div>
+
+            <!-- Resultados -->
+            <template x-for="r in buscaGlobalResultados" x-bind:key="r.processo.id">
+                <div class="bg-white rounded-xl shadow overflow-hidden border-l-4 border-orange-400">
+                    <!-- Cabeçalho do processo -->
+                    <div class="p-3 border-b border-slate-100">
+                        <div class="flex items-start justify-between gap-2 mb-1">
+                            <span class="font-mono font-bold text-sm text-slate-800 break-all" x-text="r.processo.sei"></span>
+                        </div>
+                        <p class="text-xs text-slate-500 truncate" x-text="r.processo.pro_reitoria_unidade"></p>
+                        <p class="text-xs text-slate-400" x-text="'Sala: ' + (r.processo.sala || '—')"></p>
+                        <button class="mt-2 w-full bg-blue-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg"
+                                x-on:click="abrirProcessoNaAba(r.processo)">
+                            ✏️ Abrir processo
+                        </button>
+                    </div>
+
+                    <!-- Itens que bateram na busca (se houver) -->
+                    <template x-if="r.itens.length > 0">
+                        <div class="divide-y divide-slate-100">
+                            <template x-for="i in r.itens" x-bind:key="i.id">
+                                <div class="flex gap-3 items-start p-3">
+                                    <!-- Miniatura -->
+                                    <div class="flex-shrink-0">
+                                        <template x-if="i.foto">
+                                            <img x-bind:src="i.foto" class="w-14 h-14 object-cover rounded-lg border shadow-sm">
+                                        </template>
+                                        <template x-if="!i.foto">
+                                            <div class="w-14 h-14 bg-slate-100 rounded-lg flex items-center justify-center text-slate-300 text-xl">📷</div>
+                                        </template>
+                                    </div>
+                                    <!-- Dados do item -->
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="font-mono font-bold text-sm" x-text="i.patrimonio"></span>
+                                            <!-- Badge situação -->
+                                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                                  x-bind:class="{
+                                                    'bg-emerald-100 text-emerald-700': i.situacao === 'Ativo' || !i.situacao,
+                                                    'bg-red-100 text-red-600': i.situacao === 'Baixado',
+                                                    'bg-amber-100 text-amber-700': i.situacao === 'Não encontrado'
+                                                  }"
+                                                  x-text="i.situacao || 'Ativo'">
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-slate-500 mt-0.5" x-text="i.descricao"></p>
+                                        <p class="text-[10px] text-slate-400" x-text="i.tamanho ? 'Tam: ' + i.tamanho : ''"></p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Processo encontrado por SEI/sala mas sem itens que bateram -->
+                    <template x-if="r.itens.length === 0">
+                        <div class="p-3 text-[10px] text-slate-400 italic">Processo encontrado — sem itens correspondentes ao termo.</div>
+                    </template>
                 </div>
             </template>
         </div>
