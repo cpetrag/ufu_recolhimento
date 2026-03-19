@@ -9,6 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="api.js"></script>
     <script src="app.js"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
@@ -27,6 +28,9 @@
             </button>
             <button x-on:click="aba = 'pdf'; if(processoId) buscaSei = processo.sei" x-bind:class="aba === 'pdf' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>📄</span><span>Documento</span>
+            </button>
+            <button x-on:click="aba = 'processos'; carregarListaProcessos()" x-bind:class="aba === 'processos' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
+                <span>📋</span><span>Processos</span>
             </button>
         </div>
     </nav>
@@ -143,6 +147,79 @@
                 </button>
             </div>
         </div>
+        <div x-show="aba === 'processos'" x-cloak class="space-y-4">
+            <!-- Cabeçalho + exportações globais -->
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-violet-500">
+                <h2 class="font-bold mb-3 text-violet-700 text-[10px] uppercase tracking-widest text-center">Processos Cadastrados</h2>
+
+                <!-- Filtro -->
+                <input class="w-full p-2 border rounded-lg text-sm bg-slate-50 mb-3" placeholder="🔍 Filtrar por SEI, unidade ou sala..." x-model="processosFiltro">
+
+                <!-- Botões de exportação global -->
+                <div class="grid grid-cols-2 gap-2 mb-1">
+                    <button class="bg-emerald-600 text-white text-[10px] font-bold uppercase py-2 px-3 rounded-lg shadow" x-on:click="exportarCSVTodos()">
+                        📊 Exportar CSV
+                    </button>
+                    <button class="bg-teal-600 text-white text-[10px] font-bold uppercase py-2 px-3 rounded-lg shadow" x-on:click="exportarExcelTodos()">
+                        📗 Exportar Excel
+                    </button>
+                    <button class="col-span-2 bg-violet-700 text-white text-[10px] font-bold uppercase py-2 px-3 rounded-lg shadow" x-on:click="exportarPDFConsolidado()" x-bind:disabled="exportando">
+                        <span x-text="exportando ? '⏳ Gerando PDF...' : '📄 PDF Consolidado (todos)'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estado de carregamento / erro -->
+            <div x-show="processosCarregando" class="text-center text-sm text-slate-400 py-6">⏳ Carregando processos...</div>
+            <div x-show="processosErro" class="text-center text-sm text-red-500 py-4" x-text="processosErro"></div>
+            <div x-show="!processosCarregando && !processosErro && processosFiltrados.length === 0" class="text-center text-sm text-slate-400 py-6">Nenhum processo encontrado.</div>
+
+            <!-- Lista de processos -->
+            <template x-for="p in processosFiltrados" x-bind:key="p.id">
+                <div class="bg-white rounded-xl shadow border-l-4 overflow-hidden"
+                     x-bind:class="{
+                        'border-emerald-500': p.status_envio === 'completo',
+                        'border-amber-400': p.status_envio === 'parcial',
+                        'border-red-400': p.status_envio === 'pendente',
+                        'border-slate-300': p.status_envio === 'vazio'
+                     }">
+                    <div class="p-3">
+                        <!-- SEI + badge status -->
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-mono font-bold text-sm text-slate-800" x-text="p.sei"></span>
+                            <span class="text-[9px] font-bold uppercase px-2 py-1 rounded-full"
+                                  x-bind:class="{
+                                    'bg-emerald-100 text-emerald-700': p.status_envio === 'completo',
+                                    'bg-amber-100 text-amber-700': p.status_envio === 'parcial',
+                                    'bg-red-100 text-red-600': p.status_envio === 'pendente',
+                                    'bg-slate-100 text-slate-500': p.status_envio === 'vazio'
+                                  }"
+                                  x-text="p.status_envio === 'completo' ? '✓ SharePoint OK' : p.status_envio === 'parcial' ? '⚡ Parcial' : p.status_envio === 'pendente' ? '⏳ Pendente' : '— Sem itens'">
+                            </span>
+                        </div>
+                        <!-- Unidade e sala -->
+                        <p class="text-xs text-slate-500 truncate" x-text="p.pro_reitoria_unidade"></p>
+                        <p class="text-xs text-slate-400" x-text="'Sala: ' + (p.sala || '—')"></p>
+                        <!-- Métricas -->
+                        <div class="flex gap-4 mt-2 text-[10px] text-slate-500">
+                            <span>📦 <strong x-text="p.total_itens"></strong> itens</span>
+                            <span>☁️ <strong x-text="p.enviados_sharepoint"></strong> enviados</span>
+                            <span>📅 <strong x-text="p.created_at ? p.created_at.substring(0,10) : '—'"></strong></span>
+                        </div>
+                        <!-- Ações -->
+                        <div class="flex gap-2 mt-3">
+                            <button class="flex-1 bg-blue-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="abrirProcessoNaAba(p)">
+                                ✏️ Abrir
+                            </button>
+                            <button class="flex-1 bg-slate-700 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="exportarPDFProcesso(p)">
+                                📄 PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
     </div>
 
 </body>
