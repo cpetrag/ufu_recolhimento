@@ -100,8 +100,24 @@ function listarProcessos() {
         var processos = res.data || [];
         if (processos.length === 0) return [];
         var ids = processos.map(function(p) { return p.id; });
-        return db.from("patrimonios").select("processo_id, enviado_sharepoint").in("processo_id", ids).then(function(r) {
-            var itens = r.data || [];
+
+        // Pagina de 1000 em 1000 para nao truncar com muitos itens
+        function buscarPagina(from, acumulado) {
+            return db.from("patrimonios")
+                .select("processo_id, enviado_sharepoint")
+                .in("processo_id", ids)
+                .range(from, from + 999)
+                .then(function(r) {
+                    var pagina = r.data || [];
+                    var total = acumulado.concat(pagina);
+                    if (pagina.length === 1000) {
+                        return buscarPagina(from + 1000, total);
+                    }
+                    return total;
+                });
+        }
+
+        return buscarPagina(0, []).then(function(itens) {
             return processos.map(function(p) {
                 var seus = itens.filter(function(i) { return i.processo_id === p.id; });
                 var enviados = seus.filter(function(i) { return i.enviado_sharepoint; }).length;
