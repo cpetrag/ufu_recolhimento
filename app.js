@@ -4,26 +4,19 @@ var BASE_CSV_URL = "https://custodioufu.netlify.app/base.csv";
 function app() {
     return {
         aba: "processo",
-        campus: [],
-        blocos: [],
-        itens: [],
-        baseCSV: [],
-        csvCarregando: true,
-        csvCarregado: false,
-        csvErro: null,
+        campus: [], blocos: [], itens: [],
+        baseCSV: [], csvCarregando: true, csvCarregado: false, csvErro: null,
         unidades_db: [],
-        processoId: null,
-        loading: false,
-        exportando: false,
-        buscaSei: "",
-        patrimonioNaoEncontrado: false,
-        // aba processos
-        processosList: [],
-        processosCarregando: false,
-        processosErro: null,
-        processosFiltro: "",
+        processoId: null, loading: false, exportando: false,
+        buscaSei: "", patrimonioNaoEncontrado: false,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
+        // aba processos
+        processosList: [], processosCarregando: false, processosErro: null, processosFiltro: "",
+        // edição de item
+        itemEditando: null,
+        itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
+        itemEditNovaFoto: false,
 
         init: function() {
             var self = this;
@@ -34,9 +27,7 @@ function app() {
 
         carregarBaseCSV: function() {
             var self = this;
-            this.csvCarregando = true;
-            this.csvCarregado = false;
-            this.csvErro = null;
+            this.csvCarregando = true; this.csvCarregado = false; this.csvErro = null;
             fetch(BASE_CSV_URL)
                 .then(function(res) {
                     if (!res.ok) throw new Error("CSV não encontrado: " + res.status);
@@ -55,8 +46,7 @@ function app() {
                             DescricaoBem: self._valor(linha, map.DescricaoBem)
                         };
                     }).filter(function(l) { return l.NroPatrimonio !== undefined || l.CodioBarra !== undefined; });
-                    self.csvCarregando = false;
-                    self.csvCarregado = true;
+                    self.csvCarregando = false; self.csvCarregado = true;
                 })
                 .catch(function(err) {
                     self.csvCarregando = false;
@@ -92,21 +82,16 @@ function app() {
 
         carregarBlocos: function() {
             var self = this;
-            API.carregarBlocos(this.processo.campus_id).then(function(data) {
-                self.blocos = data;
-            });
+            API.carregarBlocos(this.processo.campus_id).then(function(data) { self.blocos = data; });
         },
 
         buscarProcessoExistente: function() {
             var self = this;
             API.buscarProcessoPorSEI(this.processo.sei).then(function(data) {
                 if (data) {
-                    self.processo = data;
-                    self.processoId = data.id;
+                    self.processo = data; self.processoId = data.id;
                     self.carregarBlocos();
-                    API.carregarItensProcesso(data.id).then(function(itens) {
-                        self.itens = itens;
-                    });
+                    API.carregarItensProcesso(data.id).then(function(itens) { self.itens = itens; });
                     alert("Processo carregado!");
                     self.aba = "itens";
                 }
@@ -115,40 +100,19 @@ function app() {
 
         salvarProcesso: function() {
             var self = this;
-            if (!this.processo.sei || this.processo.sei.length < 20) {
-                alert("Preencha o Número SEI corretamente.");
-                return;
-            }
-            if (!this.processo.pro_reitoria_unidade) {
-                alert("Preencha a Pró-Reitoria / Unidade.");
-                return;
-            }
-            if (!this.processo.campus_id) {
-                alert("Selecione o Campus.");
-                return;
-            }
-            if (!this.processo.sala) {
-                alert("Preencha a Sala/Espaço.");
-                return;
-            }
+            if (!this.processo.sei || this.processo.sei.length < 20) { alert("Preencha o Número SEI corretamente."); return; }
+            if (!this.processo.pro_reitoria_unidade) { alert("Preencha a Pró-Reitoria / Unidade."); return; }
+            if (!this.processo.campus_id) { alert("Selecione o Campus."); return; }
+            if (!this.processo.sala) { alert("Preencha a Sala/Espaço."); return; }
             API.salvarProcesso(this.processo).then(function(data) {
-                self.processoId = data.id;
-                self.processo = data;
-                self.aba = "itens";
+                self.processoId = data.id; self.processo = data; self.aba = "itens";
             });
         },
 
         buscarPatrimonio: function() {
             var v = String(this.item.patrimonio).trim();
-            if (!v) {
-                this.item.descricao = "";
-                this.patrimonioNaoEncontrado = false;
-                return;
-            }
-            if (!this.csvCarregado || this.baseCSV.length === 0) {
-                this.patrimonioNaoEncontrado = false;
-                return;
-            }
+            if (!v) { this.item.descricao = ""; this.patrimonioNaoEncontrado = false; return; }
+            if (!this.csvCarregado || this.baseCSV.length === 0) { this.patrimonioNaoEncontrado = false; return; }
             var vNum = parseInt(v, 10);
             var achado = this.baseCSV.find(function(i) {
                 var nroPat = parseInt(String(i.NroPatrimonio || "").trim(), 10);
@@ -165,29 +129,17 @@ function app() {
         capturarFoto: function(e) {
             var self = this;
             var file = e.target.files[0];
-            if (file) {
-                API.processarFoto(file).then(function(foto) {
-                    self.item.foto = foto;
-                });
-            }
+            if (file) API.processarFoto(file).then(function(foto) { self.item.foto = foto; });
         },
 
         colarFoto: function(e) {
             var self = this;
             var items = e.clipboardData && e.clipboardData.items;
-            if (!items) {
-                alert("Navegador não suporta colar imagens.");
-                return;
-            }
+            if (!items) { alert("Navegador não suporta colar imagens."); return; }
             for (var i = 0; i < items.length; i++) {
                 if (items[i].type.indexOf("image") !== -1) {
                     var blob = items[i].getAsFile();
-                    if (blob) {
-                        API.processarFoto(blob).then(function(foto) {
-                            self.item.foto = foto;
-                        });
-                        return;
-                    }
+                    if (blob) { API.processarFoto(blob).then(function(foto) { self.item.foto = foto; }); return; }
                 }
             }
             alert("Nenhuma imagem encontrada. Copie uma imagem primeiro e depois cole aqui (Ctrl+V).");
@@ -195,45 +147,30 @@ function app() {
 
         colarFotoBtn: function() {
             var self = this;
-            if (!navigator.clipboard || !navigator.clipboard.read) {
-                alert("Clique nesta área e use Ctrl+V para colar a imagem.");
-                return;
-            }
+            if (!navigator.clipboard || !navigator.clipboard.read) { alert("Clique nesta área e use Ctrl+V para colar a imagem."); return; }
             navigator.clipboard.read().then(function(items) {
                 for (var i = 0; i < items.length; i++) {
                     var types = items[i].types;
                     for (var j = 0; j < types.length; j++) {
                         if (types[j].indexOf("image") !== -1) {
                             items[i].getType(types[j]).then(function(blob) {
-                                API.processarFoto(blob).then(function(foto) {
-                                    self.item.foto = foto;
-                                });
+                                API.processarFoto(blob).then(function(foto) { self.item.foto = foto; });
                             });
                             return;
                         }
                     }
                 }
                 alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
-            }).catch(function() {
-                alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V.");
-            });
+            }).catch(function() { alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V."); });
         },
 
         salvarItem: function() {
             var self = this;
             if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
-
-            // Verifica se patrimônio já existe no processo (ignora "Sem número")
             if (this.item.patrimonio !== "Sem número") {
-                var patrimonioExiste = this.itens.some(function(i) {
-                    return String(i.patrimonio) === String(self.item.patrimonio);
-                });
-                if (patrimonioExiste) {
-                    alert("Este patrimônio já foi cadastrado neste processo.");
-                    return;
-                }
+                var existe = this.itens.some(function(i) { return String(i.patrimonio) === String(self.item.patrimonio); });
+                if (existe) { alert("Este patrimônio já foi cadastrado neste processo."); return; }
             }
-
             if (this.item.semPatrimonio && !this.item.descricao.trim()) { alert("Informe a descrição do item."); return; }
             if (!this.item.semPatrimonio && !this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
             if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
@@ -241,33 +178,102 @@ function app() {
             if (!this.item.foto) { alert("Capture a Foto."); return; }
 
             this.loading = true;
-            API.salvarItem(this.item, this.processoId).then(function() {
-                self.itens.unshift({
-                    patrimonio: self.item.patrimonio,
-                    descricao: self.item.descricao,
-                    tamanho: self.item.tamanho,
-                    viavel: self.item.viavel,
-                    bvm: self.item.bvm,
-                    foto: self.item.foto
-                });
+            API.salvarItem(this.item, this.processoId).then(function(salvo) {
+                self.itens.unshift(salvo);
                 self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false };
                 self.patrimonioNaoEncontrado = false;
                 self.loading = false;
-            }).catch(function() {
+            }).catch(function() { self.loading = false; });
+        },
+
+        // =============================================
+        // EDIÇÃO DE ITEM
+        // =============================================
+        abrirEdicaoItem: function(i) {
+            this.itemEditando = i.id;
+            this.itemEditNovaFoto = false;
+            this.itemEditForm = {
+                patrimonio: i.patrimonio, descricao: i.descricao,
+                tamanho: i.tamanho, viavel: i.viavel, bvm: i.bvm, foto: i.foto
+            };
+        },
+
+        cancelarEdicaoItem: function() {
+            this.itemEditando = null;
+        },
+
+        capturarFotoEdicao: function(e) {
+            var self = this;
+            var file = e.target.files[0];
+            if (file) {
+                API.processarFoto(file).then(function(foto) {
+                    self.itemEditForm.foto = foto;
+                    self.itemEditNovaFoto = true;
+                });
+            }
+        },
+
+        salvarEdicaoItem: function(i) {
+            var self = this;
+            if (!this.itemEditForm.descricao.trim()) { alert("Informe a descrição."); return; }
+            if (!this.itemEditForm.tamanho) { alert("Selecione o Tamanho."); return; }
+            var campos = {
+                descricao: this.itemEditForm.descricao,
+                tamanho: this.itemEditForm.tamanho,
+                viavel: this.itemEditForm.viavel,
+                bvm: this.itemEditForm.bvm
+            };
+            if (this.itemEditNovaFoto) campos.foto = this.itemEditForm.foto;
+            // Se editou campos relevantes, marca como não enviado para reenvio
+            campos.enviado_sharepoint = false;
+            this.loading = true;
+            API.editarItem(i.id, campos).then(function(atualizado) {
+                var idx = self.itens.findIndex(function(x) { return x.id === i.id; });
+                if (idx !== -1) self.itens.splice(idx, 1, atualizado);
+                self.itemEditando = null;
                 self.loading = false;
+            }).catch(function() { self.loading = false; });
+        },
+
+        excluirItemLista: function(i) {
+            var self = this;
+            if (!confirm("Excluir patrimônio " + i.patrimonio + "? Esta ação não pode ser desfeita.")) return;
+            API.excluirItem(i.id).then(function() {
+                self.itens = self.itens.filter(function(x) { return x.id !== i.id; });
+            }).catch(function() { alert("Erro ao excluir item."); });
+        },
+
+        reenviarItemSharePoint: function(i) {
+            var self = this;
+            if (i._reenviando) return;
+            i._reenviando = true;
+            // força reatividade
+            self.itens = self.itens.slice();
+            API.enviarItemSharePoint(self.processo, i).then(function(r) {
+                if (r.ok) {
+                    var idx = self.itens.findIndex(function(x) { return x.id === i.id; });
+                    if (idx !== -1) {
+                        var atualizado = Object.assign({}, self.itens[idx], { enviado_sharepoint: true, _reenviando: false });
+                        self.itens.splice(idx, 1, atualizado);
+                    }
+                } else {
+                    alert("Falha ao reenviar item " + i.patrimonio + ".");
+                    i._reenviando = false;
+                    self.itens = self.itens.slice();
+                }
             });
         },
 
+        // =============================================
+        // ABA PROCESSOS
+        // =============================================
         carregarListaProcessos: function() {
             var self = this;
-            this.processosCarregando = true;
-            this.processosErro = null;
+            this.processosCarregando = true; this.processosErro = null;
             API.listarProcessos().then(function(data) {
-                self.processosList = data;
-                self.processosCarregando = false;
-            }).catch(function(err) {
-                self.processosErro = "Erro ao carregar processos.";
-                self.processosCarregando = false;
+                self.processosList = data; self.processosCarregando = false;
+            }).catch(function() {
+                self.processosErro = "Erro ao carregar processos."; self.processosCarregando = false;
             });
         },
 
@@ -282,55 +288,59 @@ function app() {
         },
 
         abrirProcessoNaAba: function(p) {
-            this.processo = p;
-            this.processoId = p.id;
+            this.processo = p; this.processoId = p.id;
             this.carregarBlocos();
             var self = this;
             API.carregarItensProcesso(p.id).then(function(itens) { self.itens = itens; });
+            this.itemEditando = null;
             this.aba = "itens";
         },
 
-        exportarCSVTodos: function() {
+        excluirProcessoLista: function(p) {
             var self = this;
+            if (!confirm("Excluir processo " + p.sei + " e todos os seus " + p.total_itens + " itens? Esta ação não pode ser desfeita.")) return;
+            API.excluirProcesso(p.id).then(function() {
+                self.processosList = self.processosList.filter(function(x) { return x.id !== p.id; });
+                // limpa estado se era o processo ativo
+                if (self.processoId === p.id) {
+                    self.processoId = null;
+                    self.processo = { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" };
+                    self.itens = [];
+                }
+            }).catch(function() { alert("Erro ao excluir processo."); });
+        },
+
+        exportarCSVTodos: function() {
             var procs = this.processosFiltrados;
             if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
             var todas = [];
-            var promessas = procs.map(function(p) {
+            Promise.all(procs.map(function(p) {
                 return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
                     itens.forEach(function(i) {
                         todas.push({
-                            SEI: p.sei,
-                            Unidade: p.pro_reitoria_unidade || "",
-                            Sala: p.sala || "",
+                            SEI: p.sei, Unidade: p.pro_reitoria_unidade || "", Sala: p.sala || "",
                             Data: p.created_at ? p.created_at.substring(0, 10) : "",
-                            Patrimonio: i.patrimonio,
-                            Descricao: i.descricao || "",
-                            Tamanho: i.tamanho || "",
-                            Viavel: i.viavel ? "Sim" : "Não",
-                            BVM: i.bvm ? "Sim" : "Não",
-                            Enviado_SharePoint: i.enviado_sharepoint ? "Sim" : "Não"
+                            Patrimonio: i.patrimonio, Descricao: i.descricao || "",
+                            Tamanho: i.tamanho || "", Viavel: i.viavel ? "Sim" : "Não",
+                            BVM: i.bvm ? "Sim" : "Não", Enviado_SharePoint: i.enviado_sharepoint ? "Sim" : "Não"
                         });
                     });
                 });
-            });
-            Promise.all(promessas).then(function() {
+            })).then(function() {
                 var csv = Papa.unparse(todas);
                 var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
                 var url = URL.createObjectURL(blob);
-                var a = document.createElement("a");
-                a.href = url;
+                var a = document.createElement("a"); a.href = url;
                 a.download = "Recolhimento_Todos_" + new Date().toISOString().substring(0,10) + ".csv";
-                a.click();
-                URL.revokeObjectURL(url);
+                a.click(); URL.revokeObjectURL(url);
             });
         },
 
         exportarExcelTodos: function() {
-            var self = this;
             var procs = this.processosFiltrados;
             if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
             var todas = [];
-            var promessas = procs.map(function(p) {
+            Promise.all(procs.map(function(p) {
                 return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
                     itens.forEach(function(i) {
                         todas.push([
@@ -342,12 +352,11 @@ function app() {
                         ]);
                     });
                 });
-            });
-            Promise.all(promessas).then(function() {
+            })).then(function() {
                 var XLS = window.XLSX;
                 var wb = XLS.utils.book_new();
-                var cabecalho = [["SEI","Unidade","Sala","Data","Patrimônio","Descrição","Tamanho","Viável","BVM","Enviado SharePoint"]];
-                var ws = XLS.utils.aoa_to_sheet(cabecalho.concat(todas));
+                var cab = [["SEI","Unidade","Sala","Data","Patrimônio","Descrição","Tamanho","Viável","BVM","Enviado SharePoint"]];
+                var ws = XLS.utils.aoa_to_sheet(cab.concat(todas));
                 ws["!cols"] = [22,30,15,12,16,40,10,8,8,18].map(function(w){return{wch:w};});
                 XLS.utils.book_append_sheet(wb, ws, "Recolhimento");
                 XLS.writeFile(wb, "Recolhimento_Todos_" + new Date().toISOString().substring(0,10) + ".xlsx");
@@ -357,13 +366,10 @@ function app() {
         exportarPDFProcesso: function(proc) {
             var self = this;
             API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
-                var tmpProcesso = self.processo;
-                var tmpItens = self.itens;
-                self.processo = proc;
-                self.itens = itens;
+                var tmp = { processo: self.processo, itens: self.itens };
+                self.processo = proc; self.itens = itens;
                 self.criarPDF();
-                self.processo = tmpProcesso;
-                self.itens = tmpItens;
+                self.processo = tmp.processo; self.itens = tmp.itens;
             });
         },
 
@@ -381,69 +387,49 @@ function app() {
             function processarProximo(idx) {
                 if (idx >= procs.length) {
                     doc.save("Recolhimento_Consolidado_" + new Date().toISOString().substring(0,10) + ".pdf");
-                    self.exportando = false;
-                    return;
+                    self.exportando = false; return;
                 }
                 var proc = procs[idx];
                 API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
-                    function desenharCabecalho() {
-                        doc.setFontSize(14);
-                        doc.setFont("helvetica", "bold");
+                    function cabecalho() {
+                        doc.setFontSize(14); doc.setFont("helvetica", "bold");
                         doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
-                        doc.setFontSize(10);
-                        doc.setFont("helvetica", "normal");
+                        doc.setFontSize(10); doc.setFont("helvetica", "normal");
                         doc.text(proc.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
                         doc.line(15, 30, pageWidth - 15, 30);
                         doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
                         doc.text("SALA / ESPAÇO: " + proc.sala, 15, 43);
                     }
-
                     if (itens.length === 0) {
-                        if (!primeiro) doc.addPage();
-                        primeiro = false;
-                        desenharCabecalho();
-                        doc.setFontSize(10);
+                        if (!primeiro) doc.addPage(); primeiro = false;
+                        cabecalho(); doc.setFontSize(10);
                         doc.text("Nenhum item registrado.", 15, 55);
-                        processarProximo(idx + 1);
-                        return;
+                        processarProximo(idx + 1); return;
                     }
-
                     for (var p = 0; p < itens.length; p += ITENS_POR_PAGINA) {
-                        if (!primeiro || p > 0) doc.addPage();
-                        primeiro = false;
-                        desenharCabecalho();
+                        if (!primeiro || p > 0) doc.addPage(); primeiro = false;
+                        cabecalho();
                         var chunk = itens.slice(p, p + ITENS_POR_PAGINA);
                         var fotos = [];
-                        var tableBody = chunk.map(function(i) {
+                        var body = chunk.map(function(i) {
                             fotos.push(i.foto || "");
-                            return [
-                                { content: "", styles: { minCellHeight: 40 } },
-                                "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
-                            ];
+                            return [{ content: "", styles: { minCellHeight: 40 } },
+                                "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao +
+                                "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")];
                         });
                         doc.autoTable({
-                            startY: 48,
-                            head: [["Foto", "Detalhes"]],
-                            body: tableBody,
+                            startY: 48, head: [["Foto", "Detalhes"]], body: body,
                             columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
                             styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
-                            didDrawCell: function(fotosChunk) {
-                                return function(data) {
-                                    if (data.column.index === 0 && data.cell.section === "body") {
-                                        var img = fotosChunk[data.row.index];
-                                        if (img) {
-                                            try {
-                                                var cellW = data.cell.width - 4;
-                                                var cellH = data.cell.height - 4;
-                                                var size = Math.min(cellW, cellH);
-                                                var x = data.cell.x + 2 + (cellW - size) / 2;
-                                                var y = data.cell.y + 2 + (cellH - size) / 2;
-                                                doc.addImage(img, "JPEG", x, y, size, size);
-                                            } catch(e) {}
-                                        }
-                                    }
-                                };
-                            }(fotos)
+                            didDrawCell: function(fc) { return function(data) {
+                                if (data.column.index === 0 && data.cell.section === "body") {
+                                    var img = fc[data.row.index];
+                                    if (img) { try {
+                                        var cw = data.cell.width - 4, ch = data.cell.height - 4, s = Math.min(cw, ch);
+                                        doc.addImage(img, "JPEG", data.cell.x + 2 + (cw-s)/2, data.cell.y + 2 + (ch-s)/2, s, s);
+                                    } catch(e) {} }
+                                }
+                            }; }(fotos)
                         });
                     }
                     processarProximo(idx + 1);
@@ -452,18 +438,15 @@ function app() {
             processarProximo(0);
         },
 
+        // =============================================
+        // ABA DOCUMENTO / PDF
+        // =============================================
         carregarProcessoPDF: function() {
             var self = this;
             return API.buscarProcessoPorSEI(this.buscaSei).then(function(proc) {
-                if (!proc) {
-                    alert("Processo não encontrado.");
-                    return null;
-                }
+                if (!proc) { alert("Processo não encontrado."); return null; }
                 self.processo = proc;
-                return API.carregarItensProcesso(proc.id).then(function(itens) {
-                    self.itens = itens;
-                    return proc;
-                });
+                return API.carregarItensProcesso(proc.id).then(function(itens) { self.itens = itens; return proc; });
             });
         },
 
@@ -474,14 +457,9 @@ function app() {
                 self.exportando = true;
                 self.criarPDF();
                 if (self.itens.length > 0) {
-                    API.enviarParaSharePoint(self.processo, self.itens).then(function() {
-                        self.exportando = false;
-                    }).catch(function() {
-                        self.exportando = false;
-                    });
-                } else {
-                    self.exportando = false;
-                }
+                    API.enviarParaSharePoint(self.processo, self.itens).then(function() { self.exportando = false; })
+                       .catch(function() { self.exportando = false; });
+                } else { self.exportando = false; }
             });
         },
 
@@ -494,11 +472,9 @@ function app() {
             var ITENS_POR_PAGINA = 5;
 
             function desenharCabecalho() {
-                doc.setFontSize(14);
-                doc.setFont("helvetica", "bold");
+                doc.setFontSize(14); doc.setFont("helvetica", "bold");
                 doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
-                doc.setFontSize(10);
-                doc.setFont("helvetica", "normal");
+                doc.setFontSize(10); doc.setFont("helvetica", "normal");
                 doc.text(processo.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
                 doc.line(15, 30, pageWidth - 15, 30);
                 doc.text("PROCESSO SEI: " + processo.sei, 15, 38);
@@ -508,43 +484,29 @@ function app() {
             for (var p = 0; p < itensParaPDF.length; p += ITENS_POR_PAGINA) {
                 if (p > 0) doc.addPage();
                 desenharCabecalho();
-
                 var chunk = itensParaPDF.slice(p, p + ITENS_POR_PAGINA);
                 var fotos = [];
                 var tableBody = chunk.map(function(i) {
                     fotos.push(i.foto || "");
-                    return [
-                        { content: "", styles: { minCellHeight: 40 } },
-                        "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
-                    ];
+                    return [{ content: "", styles: { minCellHeight: 40 } },
+                        "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao +
+                        "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")];
                 });
-
                 doc.autoTable({
-                    startY: 48,
-                    head: [["Foto", "Detalhes"]],
-                    body: tableBody,
+                    startY: 48, head: [["Foto", "Detalhes"]], body: tableBody,
                     columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
                     styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
-                    didDrawCell: function(fotos) {
-                        return function(data) {
-                            if (data.column.index === 0 && data.cell.section === "body") {
-                                var img = fotos[data.row.index];
-                                if (img) {
-                                    try {
-                                        var cellW = data.cell.width - 4;
-                                        var cellH = data.cell.height - 4;
-                                        var size = Math.min(cellW, cellH);
-                                        var x = data.cell.x + 2 + (cellW - size) / 2;
-                                        var y = data.cell.y + 2 + (cellH - size) / 2;
-                                        doc.addImage(img, "JPEG", x, y, size, size);
-                                    } catch(e) {}
-                                }
-                            }
-                        };
-                    }(fotos)
+                    didDrawCell: function(fotos) { return function(data) {
+                        if (data.column.index === 0 && data.cell.section === "body") {
+                            var img = fotos[data.row.index];
+                            if (img) { try {
+                                var cw = data.cell.width - 4, ch = data.cell.height - 4, s = Math.min(cw, ch);
+                                doc.addImage(img, "JPEG", data.cell.x + 2 + (cw-s)/2, data.cell.y + 2 + (ch-s)/2, s, s);
+                            } catch(e) {} }
+                        }
+                    }; }(fotos)
                 });
             }
-
             doc.save("Recolhimento_" + processo.sei + ".pdf");
         }
     };
