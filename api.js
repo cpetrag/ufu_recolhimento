@@ -160,6 +160,35 @@ function enviarParaSharePoint(processo, itens) {
 }
 
 // =============================================
+// LISTAR PROCESSOS
+// =============================================
+function listarProcessos() {
+    return db.from("processos").select("*").order("created_at", { ascending: false }).then(function(res) {
+        var processos = res.data || [];
+        if (processos.length === 0) return [];
+        var ids = processos.map(function(p) { return p.id; });
+        return db.from("patrimonios").select("processo_id, enviado_sharepoint").in("processo_id", ids).then(function(r) {
+            var itens = r.data || [];
+            return processos.map(function(p) {
+                var seus = itens.filter(function(i) { return i.processo_id === p.id; });
+                var enviados = seus.filter(function(i) { return i.enviado_sharepoint; }).length;
+                return Object.assign({}, p, {
+                    total_itens: seus.length,
+                    enviados_sharepoint: enviados,
+                    status_envio: seus.length === 0 ? "vazio" : enviados === seus.length ? "completo" : enviados > 0 ? "parcial" : "pendente"
+                });
+            });
+        });
+    });
+}
+
+function carregarItensProcessoCompleto(processoId) {
+    return db.from("patrimonios").select("*").eq("processo_id", processoId).order("created_at", { ascending: true }).then(function(res) {
+        return res.data || [];
+    });
+}
+
+// =============================================
 // EXPORTAR
 // =============================================
 window.API = {
@@ -173,6 +202,8 @@ window.API = {
     carregarItensProcesso: carregarItensProcesso,
     salvarProcesso: salvarProcesso,
     salvarItem: salvarItem,
-    enviarParaSharePoint: enviarParaSharePoint
+    enviarParaSharePoint: enviarParaSharePoint,
+    listarProcessos: listarProcessos,
+    carregarItensProcessoCompleto: carregarItensProcessoCompleto
 };
 
