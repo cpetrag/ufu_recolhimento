@@ -1,8 +1,8 @@
-// URL da base de patrimônio (CSV) - hospedado no Netlify
 var BASE_CSV_URL = "https://custodioufu.netlify.app/base.csv";
 
 function app() {
     return {
+        // ── estado geral ──────────────────────────────
         aba: "processo",
         campus: [], blocos: [], itens: [],
         baseCSV: [], csvCarregando: true, csvCarregado: false, csvErro: null,
@@ -11,25 +11,27 @@ function app() {
         buscaSei: "", patrimonioNaoEncontrado: false,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
-        // aba processos
-        processosList: [], processosCarregando: false, processosErro: null, processosFiltro: "",
-        processosFiltroAno: "",
-        processosAnosDisponiveis: [],
-        processosSelecionados: [],
-        processosDigitados: "",
+
+        // ── aba processos ─────────────────────────────
+        processosList: [], processosCarregando: false, processosErro: null,
+        processosFiltro: "", processosFiltroAno: "", processosAnos: [],
+
+        // ── seleção múltipla ──────────────────────────
+        selecionados: [],       // ids selecionados via checkbox
+        seiManual: "",          // campo de texto para digitar SEIs
         exportandoSelecionados: false,
-        processosFiltroAno: "",
-        processosAnos: [],
-        selecionados: [],
-        seiManual: "",
-        exportandoSelecionados: false,
-        // busca global
+
+        // ── busca global ──────────────────────────────
         buscaGlobal: "", buscaGlobalResultados: [], buscaGlobalCarregando: false, buscaGlobalFeita: false,
-        // edição de item
+
+        // ── edição de item ────────────────────────────
         itemEditando: null,
         itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
         itemEditNovaFoto: false,
 
+        // =============================================
+        // INIT
+        // =============================================
         init: function() {
             var self = this;
             API.carregarCampus().then(function(data) { self.campus = data; });
@@ -37,6 +39,9 @@ function app() {
             this.carregarBaseCSV();
         },
 
+        // =============================================
+        // BASE CSV (Netlify)
+        // =============================================
         carregarBaseCSV: function() {
             var self = this;
             this.csvCarregando = true; this.csvCarregado = false; this.csvErro = null;
@@ -54,8 +59,8 @@ function app() {
                     self.baseCSV = raw.map(function(linha) {
                         return {
                             NroPatrimonio: self._valor(linha, map.NroPatrimonio),
-                            CodioBarra: self._valor(linha, map.CodioBarra),
-                            DescricaoBem: self._valor(linha, map.DescricaoBem)
+                            CodioBarra:    self._valor(linha, map.CodioBarra),
+                            DescricaoBem:  self._valor(linha, map.DescricaoBem)
                         };
                     }).filter(function(l) { return l.NroPatrimonio !== undefined || l.CodioBarra !== undefined; });
                     self.csvCarregando = false; self.csvCarregado = true;
@@ -67,23 +72,23 @@ function app() {
         },
 
         _mapearColunas: function(campos) {
-            var nro = ["NroPatrimonio", "Nro Patrimônio", "Patrimônio", "Numero", "Número", "Nro"];
-            var cod = ["CodioBarra", "CodigoBarra", "Código de Barras", "Codigo Barras"];
-            var desc = ["DescricaoBem", "Descrição do Bem", "Descricao", "Descrição"];
+            var nro  = ["NroPatrimonio","Nro Patrimônio","Patrimônio","Numero","Número","Nro"];
+            var cod  = ["CodioBarra","CodigoBarra","Código de Barras","Codigo Barras"];
+            var desc = ["DescricaoBem","Descrição do Bem","Descricao","Descrição"];
             function achar(lista) {
                 for (var i = 0; i < campos.length; i++) {
-                    var c = (campos[i] || "").replace(/\uFEFF/g, "").trim();
+                    var c = (campos[i]||"").replace(/\uFEFF/g,"").trim();
                     for (var j = 0; j < lista.length; j++) if (c === lista[j]) return campos[i];
                 }
                 for (var k = 0; k < campos.length; k++) {
-                    var key = (campos[k] || "").replace(/\uFEFF/g, "").trim();
+                    var key = (campos[k]||"").replace(/\uFEFF/g,"").trim();
                     if (/patrim|numero|nro/i.test(key)) return campos[k];
-                    if (/codigo|barra/i.test(key)) return campos[k];
-                    if (/descri/i.test(key)) return campos[k];
+                    if (/codigo|barra/i.test(key))      return campos[k];
+                    if (/descri/i.test(key))             return campos[k];
                 }
                 return campos[0] || null;
             }
-            return { NroPatrimonio: achar(nro) || campos[0], CodioBarra: achar(cod) || campos[1], DescricaoBem: achar(desc) || campos[2] };
+            return { NroPatrimonio: achar(nro)||campos[0], CodioBarra: achar(cod)||campos[1], DescricaoBem: achar(desc)||campos[2] };
         },
 
         _valor: function(linha, chave) {
@@ -92,6 +97,9 @@ function app() {
             return v !== undefined && v !== null ? String(v).trim() : undefined;
         },
 
+        // =============================================
+        // ABA PROCESSO
+        // =============================================
         carregarBlocos: function() {
             var self = this;
             API.carregarBlocos(this.processo.campus_id).then(function(data) { self.blocos = data; });
@@ -121,17 +129,20 @@ function app() {
             });
         },
 
+        // =============================================
+        // ABA ITENS
+        // =============================================
         buscarPatrimonio: function() {
             var v = String(this.item.patrimonio).trim();
             if (!v) { this.item.descricao = ""; this.patrimonioNaoEncontrado = false; return; }
             if (!this.csvCarregado || this.baseCSV.length === 0) { this.patrimonioNaoEncontrado = false; return; }
             var vNum = parseInt(v, 10);
             var achado = this.baseCSV.find(function(i) {
-                var nroPat = parseInt(String(i.NroPatrimonio || "").trim(), 10);
-                var codBar = parseInt(String(i.CodioBarra || "").trim(), 10);
+                var nroPat = parseInt(String(i.NroPatrimonio||"").trim(), 10);
+                var codBar = parseInt(String(i.CodioBarra||"").trim(), 10);
                 if (!isNaN(nroPat) && nroPat === vNum) return true;
                 if (!isNaN(codBar) && codBar !== 0 && codBar === vNum) return true;
-                if (String(i.NroPatrimonio || "").trim() === v || String(i.CodioBarra || "").trim() === v) return true;
+                if (String(i.NroPatrimonio||"").trim() === v || String(i.CodioBarra||"").trim() === v) return true;
                 return false;
             });
             this.item.descricao = achado ? (achado.DescricaoBem || "") : "";
@@ -188,7 +199,6 @@ function app() {
             if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
             if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
             if (!this.item.foto) { alert("Capture a Foto."); return; }
-
             this.loading = true;
             API.salvarItem(this.item, this.processoId).then(function(salvo) {
                 self.itens.unshift(salvo);
@@ -198,52 +208,32 @@ function app() {
             }).catch(function() { self.loading = false; });
         },
 
-        // =============================================
-        // EDIÇÃO DE ITEM
-        // =============================================
+        // ── edição de item ────────────────────────────
         abrirEdicaoItem: function(i) {
             this.itemEditando = i.id;
             this.itemEditNovaFoto = false;
-            this.itemEditForm = {
-                patrimonio: i.patrimonio, descricao: i.descricao,
-                tamanho: i.tamanho, viavel: i.viavel, bvm: i.bvm, foto: i.foto
-            };
+            this.itemEditForm = { patrimonio: i.patrimonio, descricao: i.descricao, tamanho: i.tamanho, viavel: i.viavel, bvm: i.bvm, foto: i.foto };
         },
 
-        cancelarEdicaoItem: function() {
-            this.itemEditando = null;
-        },
+        cancelarEdicaoItem: function() { this.itemEditando = null; },
 
         capturarFotoEdicao: function(e) {
             var self = this;
             var file = e.target.files[0];
-            if (file) {
-                API.processarFoto(file).then(function(foto) {
-                    self.itemEditForm.foto = foto;
-                    self.itemEditNovaFoto = true;
-                });
-            }
+            if (file) API.processarFoto(file).then(function(foto) { self.itemEditForm.foto = foto; self.itemEditNovaFoto = true; });
         },
 
         salvarEdicaoItem: function(i) {
             var self = this;
             if (!this.itemEditForm.descricao.trim()) { alert("Informe a descrição."); return; }
             if (!this.itemEditForm.tamanho) { alert("Selecione o Tamanho."); return; }
-            var campos = {
-                descricao: this.itemEditForm.descricao,
-                tamanho: this.itemEditForm.tamanho,
-                viavel: this.itemEditForm.viavel,
-                bvm: this.itemEditForm.bvm
-            };
+            var campos = { descricao: this.itemEditForm.descricao, tamanho: this.itemEditForm.tamanho, viavel: this.itemEditForm.viavel, bvm: this.itemEditForm.bvm, enviado_sharepoint: false };
             if (this.itemEditNovaFoto) campos.foto = this.itemEditForm.foto;
-            // Se editou campos relevantes, marca como não enviado para reenvio
-            campos.enviado_sharepoint = false;
             this.loading = true;
             API.editarItem(i.id, campos).then(function(atualizado) {
                 var idx = self.itens.findIndex(function(x) { return x.id === i.id; });
                 if (idx !== -1) self.itens.splice(idx, 1, atualizado);
-                self.itemEditando = null;
-                self.loading = false;
+                self.itemEditando = null; self.loading = false;
             }).catch(function() { self.loading = false; });
         },
 
@@ -259,34 +249,28 @@ function app() {
             var self = this;
             if (i._reenviando) return;
             i._reenviando = true;
-            // força reatividade
             self.itens = self.itens.slice();
             API.enviarItemSharePoint(self.processo, i).then(function(r) {
                 if (r.ok) {
                     var idx = self.itens.findIndex(function(x) { return x.id === i.id; });
-                    if (idx !== -1) {
-                        var atualizado = Object.assign({}, self.itens[idx], { enviado_sharepoint: true, _reenviando: false });
-                        self.itens.splice(idx, 1, atualizado);
-                    }
+                    if (idx !== -1) self.itens.splice(idx, 1, Object.assign({}, self.itens[idx], { enviado_sharepoint: true, _reenviando: false }));
                 } else {
                     alert("Falha ao reenviar item " + i.patrimonio + ".");
-                    i._reenviando = false;
-                    self.itens = self.itens.slice();
+                    i._reenviando = false; self.itens = self.itens.slice();
                 }
             });
         },
 
         // =============================================
-        // ABA PROCESSOS
+        // ABA PROCESSOS — lista, filtros, anos
         // =============================================
         carregarListaProcessos: function() {
             var self = this;
             this.processosCarregando = true; this.processosErro = null;
-            this.selecionados = [];
+            this.selecionados = []; this.seiManual = "";
             API.listarProcessos().then(function(data) {
                 self.processosList = data;
                 self.processosCarregando = false;
-                // Extrair anos únicos dos SEIs (formato: XXXXX.XXXXXX/AAAA-DD)
                 var anos = {};
                 data.forEach(function(p) {
                     var m = (p.sei || "").match(/\/(\d{4})-/);
@@ -299,7 +283,7 @@ function app() {
         },
 
         get processosFiltrados() {
-            var f = (this.processosFiltro || "").toLowerCase().trim();
+            var f   = (this.processosFiltro    || "").toLowerCase().trim();
             var ano = (this.processosFiltroAno || "").trim();
             return this.processosList.filter(function(p) {
                 var passaTexto = !f || (
@@ -320,8 +304,7 @@ function app() {
             this.carregarBlocos();
             var self = this;
             API.carregarItensProcesso(p.id).then(function(itens) { self.itens = itens; });
-            this.itemEditando = null;
-            this.aba = "itens";
+            this.itemEditando = null; this.aba = "itens";
         },
 
         excluirProcessoLista: function(p) {
@@ -329,7 +312,6 @@ function app() {
             if (!confirm("Excluir processo " + p.sei + " e todos os seus " + p.total_itens + " itens? Esta ação não pode ser desfeita.")) return;
             API.excluirProcesso(p.id).then(function() {
                 self.processosList = self.processosList.filter(function(x) { return x.id !== p.id; });
-                // limpa estado se era o processo ativo
                 if (self.processoId === p.id) {
                     self.processoId = null;
                     self.processo = { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" };
@@ -354,220 +336,45 @@ function app() {
         selecionarTodosFiltrados: function() {
             var self = this;
             var ids = this.processosFiltrados.map(function(p) { return p.id; });
-            if (ids.every(function(id) { return self.selecionados.indexOf(id) !== -1; })) {
-                // todos já selecionados → desmarcar
+            var todosJa = ids.every(function(id) { return self.selecionados.indexOf(id) !== -1; });
+            if (todosJa) {
                 this.selecionados = this.selecionados.filter(function(id) { return ids.indexOf(id) === -1; });
             } else {
-                ids.forEach(function(id) {
-                    if (self.selecionados.indexOf(id) === -1) self.selecionados.push(id);
-                });
+                ids.forEach(function(id) { if (self.selecionados.indexOf(id) === -1) self.selecionados.push(id); });
             }
         },
 
         adicionarSeiManual: function() {
             var self = this;
-            var partes = this.seiManual.split(/[,;
-]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+            var partes = this.seiManual.split(/[,;\n\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
             partes.forEach(function(sei) {
-                var proc = self.processosList.find(function(p) { return p.sei === sei; });
-                if (proc && self.selecionados.indexOf(proc.id) === -1) {
-                    self.selecionados.push(proc.id);
-                }
+                var proc = self.processosList.find(function(p) { return (p.sei || "").includes(sei); });
+                if (proc && self.selecionados.indexOf(proc.id) === -1) self.selecionados.push(proc.id);
             });
             this.seiManual = "";
         },
 
-        get processosSelecionados() {
+        get processosSelecionadosLista() {
             var self = this;
             return this.processosList.filter(function(p) { return self.selecionados.indexOf(p.id) !== -1; });
         },
 
-        exportarCSVSelecionados: function() {
-            this._exportarCSV(this.processosSelecionados);
-        },
+        limparSelecao: function() { this.selecionados = []; this.seiManual = ""; },
 
-        exportarExcelSelecionados: function() {
-            this._exportarExcel(this.processosSelecionados);
-        },
-
-        exportarPDFConsolidadoSelecionados: function() {
-            this._exportarPDFConsolidado(this.processosSelecionados);
-        },
-
-        exportarPDFIndividualSelecionados: function() {
-            var self = this;
-            var procs = this.processosSelecionados;
-            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
-            procs.forEach(function(proc) { self.exportarPDFProcesso(proc); });
-        },
-
-        get processosSelecionadosLista() {
-            var self = this;
-            var porDigitacao = (this.processosDigitados || "")
-                .split(/[,;\n]+/)
-                .map(function(s) { return s.trim(); })
-                .filter(function(s) { return s.length > 0; });
-            var todos = this.processosList.filter(function(p) {
-                return self.processosSelecionados.indexOf(p.id) !== -1 ||
-                       porDigitacao.some(function(d) { return (p.sei||"").includes(d); });
-            });
-            var seen = {};
-            return todos.filter(function(p) {
-                if (seen[p.id]) return false;
-                seen[p.id] = true; return true;
-            });
-        },
-
-        toggleSelecionarProcesso: function(id) {
-            var idx = this.processosSelecionados.indexOf(id);
-            if (idx === -1) this.processosSelecionados.push(id);
-            else this.processosSelecionados.splice(idx, 1);
-        },
-
-        limparSelecao: function() {
-            this.processosSelecionados = [];
-            this.processosDigitados = "";
-        },
-
-                exportarSelecionadosCSV: function() {
-            var procs = this.processosSelecionadosLista;
+        // =============================================
+        // EXPORTAÇÕES — helpers internos
+        // =============================================
+        _exportarCSV: function(procs) {
             if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
             var todas = [];
             Promise.all(procs.map(function(p) {
                 return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
                     itens.forEach(function(i) {
-                        todas.push({
-                            SEI: p.sei, Unidade: p.pro_reitoria_unidade || "", Sala: p.sala || "",
-                            Patrimonio: i.patrimonio, Descricao: i.descricao || "",
-                            Tamanho: i.tamanho || "", Viavel: i.viavel ? "Sim" : "Não",
-                            BVM: i.bvm ? "Sim" : "Não", Situacao: i.situacao || "Ativo",
-                            Enviado_SharePoint: i.enviado_sharepoint ? "Sim" : "Não"
-                        });
-                    });
-                });
-            })).then(function() {
-                var csv = Papa.unparse(todas);
-                var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-                var url = URL.createObjectURL(blob);
-                var a = document.createElement("a"); a.href = url;
-                a.download = "Selecionados_" + new Date().toISOString().substring(0,10) + ".csv";
-                a.click(); URL.revokeObjectURL(url);
-            });
-        },
-
-        exportarSelecionadosExcel: function() {
-            var procs = this.processosSelecionadosLista;
-            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
-            var todas = [];
-            Promise.all(procs.map(function(p) {
-                return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
-                    itens.forEach(function(i) {
-                        todas.push([p.sei, p.pro_reitoria_unidade || "", p.sala || "",
-                            i.patrimonio, i.descricao || "", i.tamanho || "",
-                            i.viavel ? "Sim" : "Não", i.bvm ? "Sim" : "Não",
-                            i.situacao || "Ativo", i.enviado_sharepoint ? "Sim" : "Não"]);
-                    });
-                });
-            })).then(function() {
-                var XLS = window.XLSX;
-                var wb = XLS.utils.book_new();
-                var cab = [["SEI","Unidade","Sala","Patrimônio","Descrição","Tamanho","Viável","BVM","Situação","Enviado SharePoint"]];
-                var ws = XLS.utils.aoa_to_sheet(cab.concat(todas));
-                ws["!cols"] = [22,30,30,16,40,10,8,8,16,18].map(function(w){return{wch:w};});
-                XLS.utils.book_append_sheet(wb, ws, "Selecionados");
-                XLS.writeFile(wb, "Selecionados_" + new Date().toISOString().substring(0,10) + ".xlsx");
-            });
-        },
-
-        exportarSelecionadosPDFConsolidado: function() {
-            var self = this;
-            var procs = this.processosSelecionadosLista;
-            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
-            this.exportandoSelecionados = true;
-            var jsPDF = window.jspdf.jsPDF;
-            var doc = new jsPDF("p", "mm", "a4");
-            var pageWidth = doc.internal.pageSize.getWidth();
-            var ITENS_POR_PAGINA = 5;
-            var primeiro = true;
-            function processarProximo(idx) {
-                if (idx >= procs.length) {
-                    doc.save("Selecionados_Consolidado_" + new Date().toISOString().substring(0,10) + ".pdf");
-                    self.exportandoSelecionados = false; return;
-                }
-                var proc = procs[idx];
-                API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
-                    function cab() {
-                        doc.setFontSize(14); doc.setFont("helvetica", "bold");
-                        doc.text("Universidade Federal de Uberlândia", pageWidth/2, 15, {align:"center"});
-                        doc.setFontSize(10); doc.setFont("helvetica", "normal");
-                        doc.text(proc.pro_reitoria_unidade || "", pageWidth/2, 21, {align:"center"});
-                        doc.line(15, 30, pageWidth-15, 30);
-                        doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
-                        doc.text("SALA / ESPAÇO: " + (proc.sala || ""), 15, 43);
-                    }
-                    if (itens.length === 0) {
-                        if (!primeiro) doc.addPage(); primeiro = false;
-                        cab(); doc.setFontSize(10); doc.text("Nenhum item registrado.", 15, 55);
-                        processarProximo(idx+1); return;
-                    }
-                    for (var p = 0; p < itens.length; p += ITENS_POR_PAGINA) {
-                        if (!primeiro || p > 0) doc.addPage(); primeiro = false;
-                        cab();
-                        var chunk = itens.slice(p, p+ITENS_POR_PAGINA);
-                        var fotos = [];
-                        var body = chunk.map(function(i) {
-                            fotos.push(i.foto || "");
-                            return [{content:"",styles:{minCellHeight:40}},
-                                "Patrimônio: "+i.patrimonio+"\nDescrição: "+i.descricao+
-                                "\nTamanho: "+(i.tamanho||"")+"\nViável: "+(i.viavel?"Sim":"Não")+"\nBVM: "+(i.bvm?"Sim":"Não")];
-                        });
-                        doc.autoTable({startY:48, head:[["Foto","Detalhes"]], body:body,
-                            columnStyles:{0:{cellWidth:45},1:{cellWidth:"auto"}},
-                            styles:{fontSize:10.5,valign:"middle",cellPadding:4},
-                            didDrawCell: function(fc){ return function(data) {
-                                if (data.column.index===0 && data.cell.section==="body") {
-                                    var img=fc[data.row.index];
-                                    if(img){try{var cw=data.cell.width-4,ch=data.cell.height-4,s=Math.min(cw,ch);
-                                        doc.addImage(img,"JPEG",data.cell.x+2+(cw-s)/2,data.cell.y+2+(ch-s)/2,s,s);
-                                    }catch(e){}}
-                                }
-                            };}(fotos)});
-                    }
-                    processarProximo(idx+1);
-                });
-            }
-            processarProximo(0);
-        },
-
-        exportarSelecionadosPDFIndividual: function() {
-            var self = this;
-            var procs = this.processosSelecionadosLista;
-            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
-            this.exportandoSelecionados = true;
-            var idx = 0;
-            function proximo() {
-                if (idx >= procs.length) { self.exportandoSelecionados = false; return; }
-                self.exportarPDFProcesso(procs[idx]);
-                idx++;
-                setTimeout(proximo, 800);
-            }
-            proximo();
-        },
-
-                exportarCSVTodos: function() {
-            var procs = this.processosFiltrados;
-            if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
-            var todas = [];
-            Promise.all(procs.map(function(p) {
-                return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
-                    itens.forEach(function(i) {
-                        todas.push({
-                            SEI: p.sei, Unidade: p.pro_reitoria_unidade || "", Sala: p.sala || "",
-                            Data: p.created_at ? p.created_at.substring(0, 10) : "",
-                            Patrimonio: i.patrimonio, Descricao: i.descricao || "",
-                            Tamanho: i.tamanho || "", Viavel: i.viavel ? "Sim" : "Não",
-                            BVM: i.bvm ? "Sim" : "Não", Enviado_SharePoint: i.enviado_sharepoint ? "Sim" : "Não"
-                        });
+                        todas.push({ SEI: p.sei, Unidade: p.pro_reitoria_unidade||"", Sala: p.sala||"",
+                            Data: p.created_at ? p.created_at.substring(0,10) : "",
+                            Patrimonio: i.patrimonio, Descricao: i.descricao||"", Tamanho: i.tamanho||"",
+                            Viavel: i.viavel?"Sim":"Não", BVM: i.bvm?"Sim":"Não",
+                            Situacao: i.situacao||"Ativo", Enviado_SharePoint: i.enviado_sharepoint?"Sim":"Não" });
                     });
                 });
             })).then(function() {
@@ -575,38 +382,104 @@ function app() {
                 var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
                 var url = URL.createObjectURL(blob);
                 var a = document.createElement("a"); a.href = url;
-                a.download = "Recolhimento_Todos_" + new Date().toISOString().substring(0,10) + ".csv";
+                a.download = "Recolhimento_" + new Date().toISOString().substring(0,10) + ".csv";
                 a.click(); URL.revokeObjectURL(url);
             });
         },
 
-        exportarExcelTodos: function() {
-            var procs = this.processosFiltrados;
-            if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
+        _exportarExcel: function(procs) {
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
             var todas = [];
             Promise.all(procs.map(function(p) {
                 return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
                     itens.forEach(function(i) {
-                        todas.push([
-                            p.sei, p.pro_reitoria_unidade || "", p.sala || "",
-                            p.created_at ? p.created_at.substring(0, 10) : "",
-                            i.patrimonio, i.descricao || "", i.tamanho || "",
-                            i.viavel ? "Sim" : "Não", i.bvm ? "Sim" : "Não",
-                            i.enviado_sharepoint ? "Sim" : "Não"
-                        ]);
+                        todas.push([p.sei, p.pro_reitoria_unidade||"", p.sala||"",
+                            p.created_at ? p.created_at.substring(0,10) : "",
+                            i.patrimonio, i.descricao||"", i.tamanho||"",
+                            i.viavel?"Sim":"Não", i.bvm?"Sim":"Não",
+                            i.situacao||"Ativo", i.enviado_sharepoint?"Sim":"Não"]);
                     });
                 });
             })).then(function() {
                 var XLS = window.XLSX;
                 var wb = XLS.utils.book_new();
-                var cab = [["SEI","Unidade","Sala","Data","Patrimônio","Descrição","Tamanho","Viável","BVM","Enviado SharePoint"]];
+                var cab = [["SEI","Unidade","Sala","Data","Patrimônio","Descrição","Tamanho","Viável","BVM","Situação","Enviado SharePoint"]];
                 var ws = XLS.utils.aoa_to_sheet(cab.concat(todas));
-                ws["!cols"] = [22,30,15,12,16,40,10,8,8,18].map(function(w){return{wch:w};});
+                ws["!cols"] = [22,30,30,12,16,40,10,8,8,16,18].map(function(w){return{wch:w};});
                 XLS.utils.book_append_sheet(wb, ws, "Recolhimento");
-                XLS.writeFile(wb, "Recolhimento_Todos_" + new Date().toISOString().substring(0,10) + ".xlsx");
+                XLS.writeFile(wb, "Recolhimento_" + new Date().toISOString().substring(0,10) + ".xlsx");
             });
         },
 
+        _exportarPDFConsolidado: function(procs, nomeArquivo) {
+            var self = this;
+            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            this.exportandoSelecionados = true;
+            var jsPDF = window.jspdf.jsPDF;
+            var doc = new jsPDF("p", "mm", "a4");
+            var pw = doc.internal.pageSize.getWidth();
+            var IPP = 5, primeiro = true;
+            function proximo(idx) {
+                if (idx >= procs.length) {
+                    doc.save((nomeArquivo || "Recolhimento") + "_" + new Date().toISOString().substring(0,10) + ".pdf");
+                    self.exportandoSelecionados = false; self.exportando = false; return;
+                }
+                var proc = procs[idx];
+                API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
+                    function cab() {
+                        doc.setFontSize(14); doc.setFont("helvetica","bold");
+                        doc.text("Universidade Federal de Uberlândia", pw/2, 15, {align:"center"});
+                        doc.setFontSize(10); doc.setFont("helvetica","normal");
+                        doc.text(proc.pro_reitoria_unidade||"", pw/2, 21, {align:"center"});
+                        doc.line(15, 30, pw-15, 30);
+                        doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
+                        doc.text("SALA / ESPAÇO: " + (proc.sala||""), 15, 43);
+                    }
+                    if (itens.length === 0) {
+                        if (!primeiro) doc.addPage(); primeiro = false;
+                        cab(); doc.setFontSize(10); doc.text("Nenhum item registrado.", 15, 55);
+                        proximo(idx+1); return;
+                    }
+                    for (var p = 0; p < itens.length; p += IPP) {
+                        if (!primeiro || p > 0) doc.addPage(); primeiro = false;
+                        cab();
+                        var chunk = itens.slice(p, p+IPP), fotos = [];
+                        var body = chunk.map(function(i) {
+                            fotos.push(i.foto||"");
+                            return [{content:"",styles:{minCellHeight:40}},
+                                "Patrimônio: "+i.patrimonio+"\nDescrição: "+i.descricao+
+                                "\nTamanho: "+(i.tamanho||"")+"\nViável: "+(i.viavel?"Sim":"Não")+"\nBVM: "+(i.bvm?"Sim":"Não")];
+                        });
+                        doc.autoTable({ startY:48, head:[["Foto","Detalhes"]], body:body,
+                            columnStyles:{0:{cellWidth:45},1:{cellWidth:"auto"}},
+                            styles:{fontSize:10.5,valign:"middle",cellPadding:4},
+                            didDrawCell: function(fc){ return function(d) {
+                                if (d.column.index===0 && d.cell.section==="body") {
+                                    var img=fc[d.row.index];
+                                    if(img){try{ var cw=d.cell.width-4,ch=d.cell.height-4,s=Math.min(cw,ch);
+                                        doc.addImage(img,"JPEG",d.cell.x+2+(cw-s)/2,d.cell.y+2+(ch-s)/2,s,s);
+                                    }catch(e){}}
+                                }
+                            };}(fotos)
+                        });
+                    }
+                    proximo(idx+1);
+                });
+            }
+            proximo(0);
+        },
+
+        // ── exportações da lista geral (todos os filtrados) ──
+        exportarCSVTodos:          function() { this._exportarCSV(this.processosFiltrados); },
+        exportarExcelTodos:        function() { this._exportarExcel(this.processosFiltrados); },
+        exportarPDFConsolidado:    function() { this.exportando = true; this._exportarPDFConsolidado(this.processosFiltrados, "Recolhimento_Consolidado"); },
+
+        // ── exportações dos selecionados ──
+        exportarCSVSelecionados:            function() { this._exportarCSV(this.processosSelecionadosLista); },
+        exportarExcelSelecionados:          function() { this._exportarExcel(this.processosSelecionadosLista); },
+        exportarPDFConsolidadoSelecionados: function() { this._exportarPDFConsolidado(this.processosSelecionadosLista, "Selecionados_Consolidado"); },
+
+        // ── PDF individual por processo ──
         exportarPDFProcesso: function(proc) {
             var self = this;
             API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
@@ -617,113 +490,10 @@ function app() {
             });
         },
 
-        exportarPDFConsolidado: function() { this._exportarPDFConsolidado(this.processosFiltrados); },
-
-        _exportarPDFConsolidado: function(procs) {
-            var self = this;
-            if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
-            this.exportando = true;
-            var jsPDF = window.jspdf.jsPDF;
-            var doc = new jsPDF("p", "mm", "a4");
-            var pageWidth = doc.internal.pageSize.getWidth();
-            var ITENS_POR_PAGINA = 5;
-            var primeiro = true;
-
-            function processarProximo(idx) {
-                if (idx >= procs.length) {
-                    doc.save("Recolhimento_Consolidado_" + new Date().toISOString().substring(0,10) + ".pdf");
-                    self.exportando = false; return;
-                }
-                var proc = procs[idx];
-                API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
-                    function cabecalho() {
-                        doc.setFontSize(14); doc.setFont("helvetica", "bold");
-                        doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
-                        doc.setFontSize(10); doc.setFont("helvetica", "normal");
-                        doc.text(proc.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
-                        doc.line(15, 30, pageWidth - 15, 30);
-                        doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
-                        doc.text("SALA / ESPAÇO: " + proc.sala, 15, 43);
-                    }
-                    if (itens.length === 0) {
-                        if (!primeiro) doc.addPage(); primeiro = false;
-                        cabecalho(); doc.setFontSize(10);
-                        doc.text("Nenhum item registrado.", 15, 55);
-                        processarProximo(idx + 1); return;
-                    }
-                    for (var p = 0; p < itens.length; p += ITENS_POR_PAGINA) {
-                        if (!primeiro || p > 0) doc.addPage(); primeiro = false;
-                        cabecalho();
-                        var chunk = itens.slice(p, p + ITENS_POR_PAGINA);
-                        var fotos = [];
-                        var body = chunk.map(function(i) {
-                            fotos.push(i.foto || "");
-                            return [{ content: "", styles: { minCellHeight: 40 } },
-                                "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao +
-                                "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")];
-                        });
-                        doc.autoTable({
-                            startY: 48, head: [["Foto", "Detalhes"]], body: body,
-                            columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
-                            styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
-                            didDrawCell: function(fc) { return function(data) {
-                                if (data.column.index === 0 && data.cell.section === "body") {
-                                    var img = fc[data.row.index];
-                                    if (img) { try {
-                                        var cw = data.cell.width - 4, ch = data.cell.height - 4, s = Math.min(cw, ch);
-                                        doc.addImage(img, "JPEG", data.cell.x + 2 + (cw-s)/2, data.cell.y + 2 + (ch-s)/2, s, s);
-                                    } catch(e) {} }
-                                }
-                            }; }(fotos)
-                        });
-                    }
-                    processarProximo(idx + 1);
-                });
-            }
-            processarProximo(0);
-        },
-
         // =============================================
-        // ABA DOCUMENTO / PDF
+        // ABA DOCUMENTO
         // =============================================
-        executarBuscaGlobal: function() {
-            var self = this;
-            var termo = (this.buscaGlobal || "").trim();
-            if (!termo || termo.length < 2) return;
-            this.buscaGlobalCarregando = true;
-            this.buscaGlobalFeita = false;
-            this.buscaGlobalResultados = [];
-            var q1 = API.db.from("patrimonios")
-                .select("id, patrimonio, descricao, foto, situacao, tamanho, viavel, bvm, processo_id")
-                .or("patrimonio.ilike.%" + termo + "%,descricao.ilike.%" + termo + "%")
-                .limit(50);
-            var q2 = API.db.from("processos")
-                .select("id, sei, sala, pro_reitoria_unidade, campus_id")
-                .or("sei.ilike.%" + termo + "%,sala.ilike.%" + termo + "%,pro_reitoria_unidade.ilike.%" + termo + "%")
-                .limit(50);
-            Promise.all([q1, q2]).then(function(results) {
-                var itensDiretos = results[0].data || [];
-                var processosDiretos = results[1].data || [];
-                var procIdsViaItens = itensDiretos.map(function(i) { return i.processo_id; });
-                var procIdsDiretos = processosDiretos.map(function(p) { return p.id; });
-                var todosIds = Array.from(new Set(procIdsViaItens.concat(procIdsDiretos)));
-                if (todosIds.length === 0) {
-                    self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true; return;
-                }
-                API.db.from("processos").select("*").in("id", todosIds).then(function(r) {
-                    var processos = r.data || [];
-                    self.buscaGlobalResultados = processos.map(function(proc) {
-                        var itensDoProc = itensDiretos.filter(function(i) { return i.processo_id === proc.id; });
-                        return { processo: proc, itens: itensDoProc };
-                    });
-                    self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true;
-                });
-            }).catch(function() {
-                self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true;
-            });
-        },
-
-                carregarProcessoPDF: function() {
+        carregarProcessoPDF: function() {
             var self = this;
             return API.buscarProcessoPorSEI(this.buscaSei).then(function(proc) {
                 if (!proc) { alert("Processo não encontrado."); return null; }
@@ -739,7 +509,8 @@ function app() {
                 self.exportando = true;
                 self.criarPDF();
                 if (self.itens.length > 0) {
-                    API.enviarParaSharePoint(self.processo, self.itens).then(function() { self.exportando = false; })
+                    API.enviarParaSharePoint(self.processo, self.itens)
+                       .then(function() { self.exportando = false; })
                        .catch(function() { self.exportando = false; });
                 } else { self.exportando = false; }
             });
@@ -748,48 +519,79 @@ function app() {
         criarPDF: function() {
             var jsPDF = window.jspdf.jsPDF;
             var doc = new jsPDF("p", "mm", "a4");
-            var pageWidth = doc.internal.pageSize.getWidth();
+            var pw = doc.internal.pageSize.getWidth();
             var itensParaPDF = this.itens.slice();
             var processo = this.processo;
-            var ITENS_POR_PAGINA = 5;
-
-            function desenharCabecalho() {
-                doc.setFontSize(14); doc.setFont("helvetica", "bold");
-                doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
-                doc.setFontSize(10); doc.setFont("helvetica", "normal");
-                doc.text(processo.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
-                doc.line(15, 30, pageWidth - 15, 30);
+            var IPP = 5;
+            function cab() {
+                doc.setFontSize(14); doc.setFont("helvetica","bold");
+                doc.text("Universidade Federal de Uberlândia", pw/2, 15, {align:"center"});
+                doc.setFontSize(10); doc.setFont("helvetica","normal");
+                doc.text(processo.pro_reitoria_unidade||"", pw/2, 21, {align:"center"});
+                doc.line(15, 30, pw-15, 30);
                 doc.text("PROCESSO SEI: " + processo.sei, 15, 38);
                 doc.text("SALA / ESPAÇO: " + processo.sala, 15, 43);
             }
-
-            for (var p = 0; p < itensParaPDF.length; p += ITENS_POR_PAGINA) {
-                if (p > 0) doc.addPage();
-                desenharCabecalho();
-                var chunk = itensParaPDF.slice(p, p + ITENS_POR_PAGINA);
-                var fotos = [];
-                var tableBody = chunk.map(function(i) {
-                    fotos.push(i.foto || "");
-                    return [{ content: "", styles: { minCellHeight: 40 } },
-                        "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao +
-                        "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")];
+            for (var p = 0; p < itensParaPDF.length; p += IPP) {
+                if (p > 0) doc.addPage(); cab();
+                var chunk = itensParaPDF.slice(p, p+IPP), fotos = [];
+                var body = chunk.map(function(i) {
+                    fotos.push(i.foto||"");
+                    return [{content:"",styles:{minCellHeight:40}},
+                        "Patrimônio: "+i.patrimonio+"\nDescrição: "+i.descricao+
+                        "\nTamanho: "+(i.tamanho||"")+"\nViável: "+(i.viavel?"Sim":"Não")+"\nBVM: "+(i.bvm?"Sim":"Não")];
                 });
-                doc.autoTable({
-                    startY: 48, head: [["Foto", "Detalhes"]], body: tableBody,
-                    columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
-                    styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
-                    didDrawCell: function(fotos) { return function(data) {
-                        if (data.column.index === 0 && data.cell.section === "body") {
-                            var img = fotos[data.row.index];
-                            if (img) { try {
-                                var cw = data.cell.width - 4, ch = data.cell.height - 4, s = Math.min(cw, ch);
-                                doc.addImage(img, "JPEG", data.cell.x + 2 + (cw-s)/2, data.cell.y + 2 + (ch-s)/2, s, s);
-                            } catch(e) {} }
+                doc.autoTable({ startY:48, head:[["Foto","Detalhes"]], body:body,
+                    columnStyles:{0:{cellWidth:45},1:{cellWidth:"auto"}},
+                    styles:{fontSize:10.5,valign:"middle",cellPadding:4},
+                    didDrawCell: function(fc){ return function(d) {
+                        if (d.column.index===0 && d.cell.section==="body") {
+                            var img=fc[d.row.index];
+                            if(img){try{ var cw=d.cell.width-4,ch=d.cell.height-4,s=Math.min(cw,ch);
+                                doc.addImage(img,"JPEG",d.cell.x+2+(cw-s)/2,d.cell.y+2+(ch-s)/2,s,s);
+                            }catch(e){}}
                         }
-                    }; }(fotos)
+                    };}(fotos)
                 });
             }
             doc.save("Recolhimento_" + processo.sei + ".pdf");
+        },
+
+        // =============================================
+        // BUSCA GLOBAL
+        // =============================================
+        executarBuscaGlobal: function() {
+            var self = this;
+            var termo = (this.buscaGlobal || "").trim();
+            if (!termo || termo.length < 2) return;
+            this.buscaGlobalCarregando = true; this.buscaGlobalFeita = false; this.buscaGlobalResultados = [];
+
+            var q1 = API.db.from("patrimonios")
+                .select("id, patrimonio, descricao, foto, situacao, tamanho, viavel, bvm, processo_id")
+                .or("patrimonio.ilike.%" + termo + "%,descricao.ilike.%" + termo + "%")
+                .limit(100);
+
+            var q2 = API.db.from("processos")
+                .select("id, sei, sala, pro_reitoria_unidade")
+                .or("sei.ilike.%" + termo + "%,sala.ilike.%" + termo + "%,pro_reitoria_unidade.ilike.%" + termo + "%")
+                .limit(100);
+
+            Promise.all([q1, q2]).then(function(results) {
+                var itensDiretos    = results[0].data || [];
+                var processosDiretos = results[1].data || [];
+                var procIdsViaItens  = itensDiretos.map(function(i) { return i.processo_id; });
+                var procIdsDiretos   = processosDiretos.map(function(p) { return p.id; });
+                var todosIds = Array.from(new Set(procIdsViaItens.concat(procIdsDiretos)));
+                if (todosIds.length === 0) { self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true; return; }
+
+                API.db.from("processos").select("*").in("id", todosIds).then(function(r) {
+                    var processos = r.data || [];
+                    self.buscaGlobalResultados = processos.map(function(proc) {
+                        return { processo: proc, itens: itensDiretos.filter(function(i) { return i.processo_id === proc.id; }) };
+                    });
+                    self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true;
+                });
+            }).catch(function() { self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true; });
         }
     };
 }
