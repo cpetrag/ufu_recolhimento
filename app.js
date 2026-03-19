@@ -17,6 +17,11 @@ function app() {
         exportando: false,
         buscaSei: "",
         patrimonioNaoEncontrado: false,
+        // aba processos
+        processosList: [],
+        processosCarregando: false,
+        processosErro: null,
+        processosFiltro: "",
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
 
@@ -251,6 +256,200 @@ function app() {
             }).catch(function() {
                 self.loading = false;
             });
+        },
+
+        carregarListaProcessos: function() {
+            var self = this;
+            this.processosCarregando = true;
+            this.processosErro = null;
+            API.listarProcessos().then(function(data) {
+                self.processosList = data;
+                self.processosCarregando = false;
+            }).catch(function(err) {
+                self.processosErro = "Erro ao carregar processos.";
+                self.processosCarregando = false;
+            });
+        },
+
+        get processosFiltrados() {
+            var f = (this.processosFiltro || "").toLowerCase().trim();
+            if (!f) return this.processosList;
+            return this.processosList.filter(function(p) {
+                return (p.sei || "").toLowerCase().includes(f) ||
+                       (p.pro_reitoria_unidade || "").toLowerCase().includes(f) ||
+                       (p.sala || "").toLowerCase().includes(f);
+            });
+        },
+
+        abrirProcessoNaAba: function(p) {
+            this.processo = p;
+            this.processoId = p.id;
+            this.carregarBlocos();
+            var self = this;
+            API.carregarItensProcesso(p.id).then(function(itens) { self.itens = itens; });
+            this.aba = "itens";
+        },
+
+        exportarCSVTodos: function() {
+            var self = this;
+            var procs = this.processosFiltrados;
+            if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
+            var todas = [];
+            var promessas = procs.map(function(p) {
+                return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
+                    itens.forEach(function(i) {
+                        todas.push({
+                            SEI: p.sei,
+                            Unidade: p.pro_reitoria_unidade || "",
+                            Sala: p.sala || "",
+                            Data: p.created_at ? p.created_at.substring(0, 10) : "",
+                            Patrimonio: i.patrimonio,
+                            Descricao: i.descricao || "",
+                            Tamanho: i.tamanho || "",
+                            Viavel: i.viavel ? "Sim" : "Não",
+                            BVM: i.bvm ? "Sim" : "Não",
+                            Enviado_SharePoint: i.enviado_sharepoint ? "Sim" : "Não"
+                        });
+                    });
+                });
+            });
+            Promise.all(promessas).then(function() {
+                var csv = Papa.unparse(todas);
+                var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a");
+                a.href = url;
+                a.download = "Recolhimento_Todos_" + new Date().toISOString().substring(0,10) + ".csv";
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        },
+
+        exportarExcelTodos: function() {
+            var self = this;
+            var procs = this.processosFiltrados;
+            if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
+            var todas = [];
+            var promessas = procs.map(function(p) {
+                return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
+                    itens.forEach(function(i) {
+                        todas.push([
+                            p.sei, p.pro_reitoria_unidade || "", p.sala || "",
+                            p.created_at ? p.created_at.substring(0, 10) : "",
+                            i.patrimonio, i.descricao || "", i.tamanho || "",
+                            i.viavel ? "Sim" : "Não", i.bvm ? "Sim" : "Não",
+                            i.enviado_sharepoint ? "Sim" : "Não"
+                        ]);
+                    });
+                });
+            });
+            Promise.all(promessas).then(function() {
+                var XLS = window.XLSX;
+                var wb = XLS.utils.book_new();
+                var cabecalho = [["SEI","Unidade","Sala","Data","Patrimônio","Descrição","Tamanho","Viável","BVM","Enviado SharePoint"]];
+                var ws = XLS.utils.aoa_to_sheet(cabecalho.concat(todas));
+                ws["!cols"] = [22,30,15,12,16,40,10,8,8,18].map(function(w){return{wch:w};});
+                XLS.utils.book_append_sheet(wb, ws, "Recolhimento");
+                XLS.writeFile(wb, "Recolhimento_Todos_" + new Date().toISOString().substring(0,10) + ".xlsx");
+            });
+        },
+
+        exportarPDFProcesso: function(proc) {
+            var self = this;
+            API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
+                var tmpProcesso = self.processo;
+                var tmpItens = self.itens;
+                self.processo = proc;
+                self.itens = itens;
+                self.criarPDF();
+                self.processo = tmpProcesso;
+                self.itens = tmpItens;
+            });
+        },
+
+        exportarPDFConsolidado: function() {
+            var self = this;
+            var procs = this.processosFiltrados;
+            if (procs.length === 0) { alert("Nenhum processo para exportar."); return; }
+            this.exportando = true;
+            var jsPDF = window.jspdf.jsPDF;
+            var doc = new jsPDF("p", "mm", "a4");
+            var pageWidth = doc.internal.pageSize.getWidth();
+            var ITENS_POR_PAGINA = 5;
+            var primeiro = true;
+
+            function processarProximo(idx) {
+                if (idx >= procs.length) {
+                    doc.save("Recolhimento_Consolidado_" + new Date().toISOString().substring(0,10) + ".pdf");
+                    self.exportando = false;
+                    return;
+                }
+                var proc = procs[idx];
+                API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
+                    function desenharCabecalho() {
+                        doc.setFontSize(14);
+                        doc.setFont("helvetica", "bold");
+                        doc.text("Universidade Federal de Uberlândia", pageWidth / 2, 15, { align: "center" });
+                        doc.setFontSize(10);
+                        doc.setFont("helvetica", "normal");
+                        doc.text(proc.pro_reitoria_unidade || "", pageWidth / 2, 21, { align: "center" });
+                        doc.line(15, 30, pageWidth - 15, 30);
+                        doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
+                        doc.text("SALA / ESPAÇO: " + proc.sala, 15, 43);
+                    }
+
+                    if (itens.length === 0) {
+                        if (!primeiro) doc.addPage();
+                        primeiro = false;
+                        desenharCabecalho();
+                        doc.setFontSize(10);
+                        doc.text("Nenhum item registrado.", 15, 55);
+                        processarProximo(idx + 1);
+                        return;
+                    }
+
+                    for (var p = 0; p < itens.length; p += ITENS_POR_PAGINA) {
+                        if (!primeiro || p > 0) doc.addPage();
+                        primeiro = false;
+                        desenharCabecalho();
+                        var chunk = itens.slice(p, p + ITENS_POR_PAGINA);
+                        var fotos = [];
+                        var tableBody = chunk.map(function(i) {
+                            fotos.push(i.foto || "");
+                            return [
+                                { content: "", styles: { minCellHeight: 40 } },
+                                "Patrimônio: " + i.patrimonio + "\nDescrição: " + i.descricao + "\nTamanho: " + i.tamanho + "\nViável: " + (i.viavel ? "Sim" : "Não") + "\nBVM: " + (i.bvm ? "Sim" : "Não")
+                            ];
+                        });
+                        doc.autoTable({
+                            startY: 48,
+                            head: [["Foto", "Detalhes"]],
+                            body: tableBody,
+                            columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
+                            styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
+                            didDrawCell: function(fotosChunk) {
+                                return function(data) {
+                                    if (data.column.index === 0 && data.cell.section === "body") {
+                                        var img = fotosChunk[data.row.index];
+                                        if (img) {
+                                            try {
+                                                var cellW = data.cell.width - 4;
+                                                var cellH = data.cell.height - 4;
+                                                var size = Math.min(cellW, cellH);
+                                                var x = data.cell.x + 2 + (cellW - size) / 2;
+                                                var y = data.cell.y + 2 + (cellH - size) / 2;
+                                                doc.addImage(img, "JPEG", x, y, size, size);
+                                            } catch(e) {}
+                                        }
+                                    }
+                                };
+                            }(fotos)
+                        });
+                    }
+                    processarProximo(idx + 1);
+                });
+            }
+            processarProximo(0);
         },
 
         carregarProcessoPDF: function() {
