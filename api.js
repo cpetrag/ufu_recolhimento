@@ -1,9 +1,14 @@
 // =============================================
 // CONFIGURAÇÃO
 // =============================================
-var SUPABASE_URL = "https://oyvvvxpgqhyowvfaepgu.supabase.co";
-var SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95dnZ2eHBncWh5b3d2ZmFlcGd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NDUxODEsImV4cCI6MjA4NTMyMTE4MX0.9MIFMZWqJWzXRW3J6v__tC_JFBhn-Tbomu8ABDKxkOM";
-var POWER_AUTOMATE_URL = "https://defaultcd5e6d23cb99418988ab1a9021a0c4.51.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/3ba53f8c4f1345f5a93729b3a1b849b0/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=2zgtu_kmMbEjoCexDvlvSYeH1tHYTzDDkKliszTfavY";
+var APP_CONFIG = window.APP_CONFIG || {};
+var SUPABASE_URL = APP_CONFIG.SUPABASE_URL || "";
+var SUPABASE_KEY = APP_CONFIG.SUPABASE_KEY || "";
+var SHAREPOINT_PROXY_URL = APP_CONFIG.SHAREPOINT_PROXY_URL || "";
+
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("Configuração ausente: defina SUPABASE_URL e SUPABASE_KEY em window.APP_CONFIG.");
+}
 
 var db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -137,6 +142,9 @@ function listarProcessos() {
 // SHAREPOINT
 // =============================================
 function enviarItemSharePoint(processo, item) {
+    if (!SHAREPOINT_PROXY_URL) {
+        return Promise.resolve({ ok: false, erro: "SHAREPOINT_PROXY_URL não configurada." });
+    }
     var payload = {
         SEI: processo.sei, Unidade: processo.pro_reitoria_unidade || "",
         Sala: processo.sala || "", Patrimonio: String(item.patrimonio),
@@ -144,15 +152,21 @@ function enviarItemSharePoint(processo, item) {
         Viavel: item.viavel ? "Sim" : "Não", BVM: item.bvm ? "Sim" : "Não",
         FotoBase64: item.foto || "", DataRegistro: new Date().toISOString()
     };
-    return fetch(POWER_AUTOMATE_URL, {
+    return fetch(SHAREPOINT_PROXY_URL, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     }).then(function(response) {
         if (response.ok) {
-            return db.from("patrimonios").update({ enviado_sharepoint: true }).eq("id", item.id)
-                .then(function() { return { ok: true }; });
+            return db.from("patrimonios").update({ enviado_sharepoint: true }).eq("id", item.id).then(function(updateRes) {
+                if (updateRes.error) return { ok: false, erro: updateRes.error.message || "Erro ao atualizar status no banco." };
+                return { ok: true };
+            });
         }
-        return { ok: false };
+        return response.text().then(function(body) {
+            return { ok: false, erro: body || ("Falha no proxy SharePoint: " + response.status) };
+        }).catch(function() {
+            return { ok: false, erro: "Falha no proxy SharePoint: " + response.status };
+        });
     }).catch(function(err) { return { ok: false, erro: err.message }; });
 }
 
