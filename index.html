@@ -94,7 +94,7 @@
                 <p x-show="csvCarregado && !csvCarregando" class="text-xs text-slate-500 mb-2">✓ Base em memória (<span x-text="baseCSV.length"></span> itens)</p>
                 <p x-show="csvErro" class="text-xs text-red-600 font-bold mb-2">❌ <span x-text="csvErro"></span> <button type="button" class="underline ml-1" x-on:click="carregarBaseCSV()">Tentar de novo</button></p>
                 <div class="flex gap-2 mb-3 items-center">
-                    <input class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio || !csvCarregado">
+                    <input x-ref="campoPatrimonio" class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio || !csvCarregado">
                     <label class="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase whitespace-nowrap cursor-pointer bg-red-50 border border-red-200 rounded-lg px-3 py-3">
                         <input type="checkbox" x-model="item.semPatrimonio" x-on:change="if(item.semPatrimonio) { item.patrimonio = 'Sem número'; item.descricao = ''; patrimonioNaoEncontrado = false; $nextTick(function(){ $refs.campoDescricao.focus(); }); } else { item.patrimonio = ''; }"> Sem patrimônio
                     </label>
@@ -119,7 +119,7 @@
                     </div>
                 </div>
                 <p class="text-[10px] text-slate-500 mb-3">
-                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM
+                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | N = incluir rápido
                 </p>
                 <div class="mb-4 p-3 border-2 border-dashed rounded-lg bg-slate-50 text-center">
                     <label class="block text-sm font-bold text-slate-600 mb-2 uppercase">📷 Foto do Item</label>
@@ -181,21 +181,22 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 mb-1">Descrição</label>
-                                    <textarea x-ref="campoDescricaoEdicao" class="w-full p-2 border rounded text-sm" rows="2" x-model="itemEditForm.descricao"></textarea>
+                                    <textarea x-ref="campoDescricaoEdicao" class="w-full p-2 border rounded text-sm" rows="2" x-model="itemEditForm.descricao" x-on:input.debounce.500ms="onCampoEdicaoAlterado()"></textarea>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
-                                    <select class="p-2 border rounded text-sm font-bold bg-white" x-model="itemEditForm.tamanho">
+                                    <select class="p-2 border rounded text-sm font-bold bg-white" x-model="itemEditForm.tamanho" x-on:change="onCampoEdicaoAlterado()">
                                         <option value="">Tamanho</option>
                                         <option>P</option><option>M</option><option>G</option><option>GG</option>
                                     </select>
                                     <div class="flex flex-col justify-center gap-1 text-[10px] font-bold uppercase">
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.viavel"> Viável</label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm" x-on:change="if(itemEditForm.bvm) { $nextTick(function() { $refs.campoDescricaoEdicao.focus(); }); }"> BVM</label>
+                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.viavel" x-on:change="onCampoEdicaoAlterado()"> Viável</label>
+                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm" x-on:change="onCampoEdicaoAlterado(); if(itemEditForm.bvm) { $nextTick(function() { $refs.campoDescricaoEdicao.focus(); }); }"> BVM</label>
                                     </div>
                                 </div>
                                 <p class="text-[10px] text-slate-500">
-                                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | Shift + ↑/↓ = navegar itens
+                                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | ↑/↓ = navegar | Delete = excluir | N = incluir
                                 </p>
+                                <p class="text-[10px] font-bold text-emerald-700" x-text="itemEditAutoStatus" x-show="itemEditAutoStatus"></p>
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 mb-1">Nova foto (opcional)</label>
                                     <input type="file" accept="image/*" capture="environment" class="text-xs w-full file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-500 file:text-white file:font-bold" x-on:change="capturarFotoEdicao($event)">

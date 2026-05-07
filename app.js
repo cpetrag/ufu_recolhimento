@@ -28,6 +28,8 @@ function app() {
         itemEditando: null,
         itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
         itemEditNovaFoto: false,
+        itemEditAutoStatus: "",
+        _itemEditAutoSaveTimer: null,
         atalhoToast: "",
         _atalhoToastTimer: null,
 
@@ -226,6 +228,7 @@ function app() {
                 API.processarFoto(blob).then(function(foto) {
                     self.itemEditForm.foto = foto;
                     self.itemEditNovaFoto = true;
+                    self.agendarAutoSaveEdicao();
                 });
             });
             if (ok) return;
@@ -244,6 +247,7 @@ function app() {
                                 API.processarFoto(blob).then(function(foto) {
                                     self.itemEditForm.foto = foto;
                                     self.itemEditNovaFoto = true;
+                                    self.agendarAutoSaveEdicao();
                                 });
                             });
                             return;
@@ -310,20 +314,100 @@ function app() {
             return this.itens.findIndex(function(x) { return x.id === this.itemEditando; }.bind(this));
         },
 
+        _itemEditandoAtual: function() {
+            var idx = this._indiceItemEditando();
+            if (idx === -1) return null;
+            return this.itens[idx];
+        },
+
+        _temMudancaEdicao: function(itemAtual) {
+            if (!itemAtual) return false;
+            if (String(this.itemEditForm.descricao || "") !== String(itemAtual.descricao || "")) return true;
+            if (String(this.itemEditForm.tamanho || "") !== String(itemAtual.tamanho || "")) return true;
+            if (!!this.itemEditForm.viavel !== !!itemAtual.viavel) return true;
+            if (!!this.itemEditForm.bvm !== !!itemAtual.bvm) return true;
+            if (this.itemEditNovaFoto) return true;
+            return false;
+        },
+
+        onCampoEdicaoAlterado: function() {
+            if (this.itemEditando === null) return;
+            this.agendarAutoSaveEdicao();
+        },
+
+        agendarAutoSaveEdicao: function() {
+            if (this.itemEditando === null) return;
+            if (this._itemEditAutoSaveTimer) clearTimeout(this._itemEditAutoSaveTimer);
+            this.itemEditAutoStatus = "Alterações pendentes...";
+            var self = this;
+            this._itemEditAutoSaveTimer = setTimeout(function() {
+                self._itemEditAutoSaveTimer = null;
+                var atual = self._itemEditandoAtual();
+                if (!atual) return;
+                self.salvarEdicaoItem(atual, { manterAberto: true, silencioso: true, origem: "auto" });
+            }, 650);
+        },
+
         abrirEdicaoItemAnterior: function() {
             var idx = this._indiceItemEditando();
             if (idx <= 0) return;
-            this.abrirEdicaoItem(this.itens[idx - 1]);
-            this._focoDescricaoEdicao();
-            this.mostrarAtalhoToast("Item anterior");
+            var self = this;
+            var atual = this.itens[idx];
+            var destino = this.itens[idx - 1];
+            this.salvarEdicaoItem(atual, { manterAberto: true, silencioso: true, origem: "navegacao" }).then(function(ok) {
+                if (ok === false) return;
+                self.abrirEdicaoItem(destino);
+                self._focoDescricaoEdicao();
+                self.mostrarAtalhoToast("Item anterior");
+            });
         },
 
         abrirEdicaoItemProximo: function() {
             var idx = this._indiceItemEditando();
             if (idx === -1 || idx >= this.itens.length - 1) return;
-            this.abrirEdicaoItem(this.itens[idx + 1]);
-            this._focoDescricaoEdicao();
-            this.mostrarAtalhoToast("Próximo item");
+            var self = this;
+            var atual = this.itens[idx];
+            var destino = this.itens[idx + 1];
+            this.salvarEdicaoItem(atual, { manterAberto: true, silencioso: true, origem: "navegacao" }).then(function(ok) {
+                if (ok === false) return;
+                self.abrirEdicaoItem(destino);
+                self._focoDescricaoEdicao();
+                self.mostrarAtalhoToast("Próximo item");
+            });
+        },
+
+        iniciarInclusaoRapida: function() {
+            this.itemEditando = null;
+            this.itemEditAutoStatus = "";
+            if (this._itemEditAutoSaveTimer) {
+                clearTimeout(this._itemEditAutoSaveTimer);
+                this._itemEditAutoSaveTimer = null;
+            }
+            var self = this;
+            this.$nextTick(function() {
+                if (self.$refs && self.$refs.campoPatrimonio) self.$refs.campoPatrimonio.focus();
+            });
+            this.mostrarAtalhoToast("Modo inclusão");
+        },
+
+        excluirItemEmEdicaoRapido: function() {
+            var idx = this._indiceItemEditando();
+            if (idx === -1) return;
+            var self = this;
+            var item = this.itens[idx];
+            if (!confirm("Excluir patrimônio " + item.patrimonio + "? Esta ação não pode ser desfeita.")) return;
+            API.excluirItem(item.id).then(function() {
+                self.itens = self.itens.filter(function(x) { return x.id !== item.id; });
+                self.mostrarAtalhoToast("Item excluído");
+                if (self.itens.length === 0) {
+                    self.itemEditando = null;
+                    self.iniciarInclusaoRapida();
+                    return;
+                }
+                var novoIdx = Math.min(idx, self.itens.length - 1);
+                self.abrirEdicaoItem(self.itens[novoIdx]);
+                self._focoDescricaoEdicao();
+            }).catch(function() { alert("Erro ao excluir item."); });
         },
 
         mostrarAtalhoToast: function(texto) {
@@ -344,14 +428,24 @@ function app() {
             var key = String(e.key || "").toLowerCase();
             if (!key) return;
 
-            if (this.itemEditando !== null && e.shiftKey && key === "arrowup") {
+            if (this.itemEditando !== null && key === "arrowup") {
                 e.preventDefault();
                 this.abrirEdicaoItemAnterior();
                 return;
             }
-            if (this.itemEditando !== null && e.shiftKey && key === "arrowdown") {
+            if (this.itemEditando !== null && key === "arrowdown") {
                 e.preventDefault();
                 this.abrirEdicaoItemProximo();
+                return;
+            }
+            if (this.itemEditando !== null && key === "delete") {
+                e.preventDefault();
+                this.excluirItemEmEdicaoRapido();
+                return;
+            }
+            if (key === "n") {
+                e.preventDefault();
+                this.iniciarInclusaoRapida();
                 return;
             }
 
@@ -386,31 +480,74 @@ function app() {
 
         // ── edição de item ────────────────────────────
         abrirEdicaoItem: function(i) {
+            if (this._itemEditAutoSaveTimer) {
+                clearTimeout(this._itemEditAutoSaveTimer);
+                this._itemEditAutoSaveTimer = null;
+            }
             this.itemEditando = i.id;
             this.itemEditNovaFoto = false;
             this.itemEditForm = { patrimonio: i.patrimonio, descricao: i.descricao, tamanho: i.tamanho, viavel: i.viavel, bvm: i.bvm, foto: i.foto };
+            this.itemEditAutoStatus = "";
         },
 
-        cancelarEdicaoItem: function() { this.itemEditando = null; },
+        cancelarEdicaoItem: function() {
+            if (this._itemEditAutoSaveTimer) {
+                clearTimeout(this._itemEditAutoSaveTimer);
+                this._itemEditAutoSaveTimer = null;
+            }
+            this.itemEditAutoStatus = "";
+            this.itemEditando = null;
+        },
 
         capturarFotoEdicao: function(e) {
             var self = this;
             var file = e.target.files[0];
-            if (file) API.processarFoto(file).then(function(foto) { self.itemEditForm.foto = foto; self.itemEditNovaFoto = true; });
+            if (file) API.processarFoto(file).then(function(foto) {
+                self.itemEditForm.foto = foto;
+                self.itemEditNovaFoto = true;
+                self.agendarAutoSaveEdicao();
+            });
         },
 
-        salvarEdicaoItem: function(i) {
+        salvarEdicaoItem: function(i, opts) {
+            opts = opts || {};
+            var manterAberto = !!opts.manterAberto;
+            var silencioso = !!opts.silencioso;
             var self = this;
-            if (!this.itemEditForm.descricao.trim()) { alert("Informe a descrição."); return; }
-            if (!this.itemEditForm.tamanho) { alert("Selecione o Tamanho."); return; }
+            var itemAtual = this._itemEditandoAtual() || i;
+            if (!itemAtual) return Promise.resolve(false);
+            if (!this._temMudancaEdicao(itemAtual)) {
+                if (manterAberto) this.itemEditAutoStatus = "Tudo salvo";
+                return Promise.resolve(true);
+            }
+            if (!this.itemEditForm.descricao.trim()) {
+                this.itemEditAutoStatus = "Descrição obrigatória";
+                if (!silencioso) alert("Informe a descrição.");
+                return Promise.resolve(false);
+            }
+            if (!this.itemEditForm.tamanho) {
+                this.itemEditAutoStatus = "Tamanho obrigatório";
+                if (!silencioso) alert("Selecione o Tamanho.");
+                return Promise.resolve(false);
+            }
             var campos = { descricao: this.itemEditForm.descricao, tamanho: this.itemEditForm.tamanho, viavel: this.itemEditForm.viavel, bvm: this.itemEditForm.bvm, enviado_sharepoint: false };
             if (this.itemEditNovaFoto) campos.foto = this.itemEditForm.foto;
             this.loading = true;
-            API.editarItem(i.id, campos).then(function(atualizado) {
+            this.itemEditAutoStatus = "Salvando...";
+            return API.editarItem(i.id, campos).then(function(atualizado) {
                 var idx = self.itens.findIndex(function(x) { return x.id === i.id; });
                 if (idx !== -1) self.itens.splice(idx, 1, atualizado);
-                self.itemEditando = null; self.loading = false;
-            }).catch(function() { self.loading = false; });
+                self.itemEditNovaFoto = false;
+                self.loading = false;
+                self.itemEditAutoStatus = "Salvo automaticamente";
+                if (!manterAberto) self.itemEditando = null;
+                return true;
+            }).catch(function() {
+                self.loading = false;
+                self.itemEditAutoStatus = "Falha ao salvar";
+                if (!silencioso) alert("Erro ao salvar edição.");
+                return false;
+            });
         },
 
         excluirItemLista: function(i) {
