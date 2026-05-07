@@ -320,6 +320,10 @@ function app() {
             return this.itens[idx];
         },
 
+        get itemEmEdicaoAtual() {
+            return this._itemEditandoAtual();
+        },
+
         _temMudancaEdicao: function(itemAtual) {
             if (!itemAtual) return false;
             if (String(this.itemEditForm.descricao || "") !== String(itemAtual.descricao || "")) return true;
@@ -507,6 +511,20 @@ function app() {
                 self.itemEditNovaFoto = true;
                 self.agendarAutoSaveEdicao();
             });
+        },
+
+        removerFotoEdicao: function() {
+            if (!this.itemEditForm.foto) return;
+            this.itemEditForm.foto = "";
+            this.itemEditNovaFoto = true;
+            this.itemEditAutoStatus = "Foto removida (pendente de salvar)";
+            this.agendarAutoSaveEdicao();
+        },
+
+        salvarItemEmEdicaoAtual: function(opts) {
+            var atual = this._itemEditandoAtual();
+            if (!atual) return Promise.resolve(false);
+            return this.salvarEdicaoItem(atual, opts || {});
         },
 
         salvarEdicaoItem: function(i, opts) {

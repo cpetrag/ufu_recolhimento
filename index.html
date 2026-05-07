@@ -175,60 +175,70 @@
                                 </div>
                             </div>
 
-                            <!-- Formulário de edição inline -->
-                            <div x-show="itemEditando === i.id"
-                                 tabindex="0"
-                                 x-on:keydown.arrow-up.prevent.stop="abrirEdicaoItemAnterior()"
-                                 x-on:keydown.arrow-left.prevent.stop="abrirEdicaoItemAnterior()"
-                                 x-on:keydown.arrow-down.prevent.stop="abrirEdicaoItemProximo()"
-                                 x-on:keydown.arrow-right.prevent.stop="abrirEdicaoItemProximo()"
-                                 x-on:keydown.delete.prevent.stop="excluirItemEmEdicaoRapido()"
-                                 x-on:keydown.n.prevent.stop="iniciarInclusaoRapida()"
-                                 class="p-3 bg-blue-50 rounded-lg border-2 border-blue-300 space-y-2">
-                                <p class="text-[10px] font-bold text-blue-700 uppercase">✏️ Editando: <span x-text="i.patrimonio"></span></p>
-                                <div class="flex gap-2">
-                                    <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemAnterior()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) <= 0">⬆️ Anterior</button>
-                                    <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemProximo()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) >= itens.length - 1">⬇️ Próximo</button>
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Descrição</label>
-                                    <textarea x-ref="campoDescricaoEdicao" class="w-full p-2 border rounded text-sm" rows="2" x-model="itemEditForm.descricao" x-on:input.debounce.500ms="onCampoEdicaoAlterado()"></textarea>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <select class="p-2 border rounded text-sm font-bold bg-white" x-model="itemEditForm.tamanho" x-on:change="onCampoEdicaoAlterado()">
-                                        <option value="">Tamanho</option>
-                                        <option>P</option><option>M</option><option>G</option><option>GG</option>
-                                    </select>
-                                    <div class="flex flex-col justify-center gap-1 text-[10px] font-bold uppercase">
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.viavel" x-on:change="onCampoEdicaoAlterado()"> Viável</label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm" x-on:change="onCampoEdicaoAlterado(); if(itemEditForm.bvm) { $nextTick(function() { $refs.campoDescricaoEdicao.focus(); }); }"> BVM</label>
-                                    </div>
-                                </div>
-                                <p class="text-[10px] text-slate-500">
-                                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | ←/↑ anterior | →/↓ próximo | Delete excluir | N incluir
-                                </p>
-                                <p class="text-[10px] font-bold text-emerald-700" x-text="itemEditAutoStatus" x-show="itemEditAutoStatus"></p>
-                                <div>
-                                    <label class="block text-[10px] font-bold text-slate-500 mb-1">Nova foto (opcional)</label>
-                                    <input type="file" accept="image/*" capture="environment" class="text-xs w-full file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-500 file:text-white file:font-bold" x-on:change="capturarFotoEdicao($event)">
-                                    <div tabindex="0" class="mt-2 p-3 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 cursor-pointer focus:ring-2 focus:ring-amber-500 outline-none text-center" x-on:paste.prevent="colarFotoEdicao($event)" x-on:click="$el.focus(); colarFotoEdicaoBtn()">
-                                        <p class="text-xs font-bold text-amber-700">📋 Colar imagem na edição</p>
-                                        <p class="text-[10px] text-amber-600 mt-1">Clique aqui e pressione Ctrl+V, ou clique para colar</p>
-                                    </div>
-                                    <template x-if="itemEditForm.foto">
-                                        <img x-bind:src="itemEditForm.foto" class="mt-2 w-24 h-24 rounded-lg border object-cover shadow-sm">
-                                    </template>
-                                    <template x-if="itemEditNovaFoto"><p class="text-[10px] text-emerald-600 font-bold mt-1">✓ Nova foto selecionada</p></template>
-                                </div>
-                                <div class="flex gap-2">
-                                    <button class="flex-1 bg-blue-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="salvarEdicaoItem(i)" x-bind:disabled="loading">
-                                        <span x-text="loading ? 'Salvando...' : 'Salvar'"></span>
-                                    </button>
-                                    <button class="flex-1 bg-slate-200 text-slate-700 text-sm font-bold py-2 rounded-lg" x-on:click="cancelarEdicaoItem()">Cancelar</button>
-                                </div>
-                            </div>
                         </div>
                     </template>
+                </div>
+            </div>
+
+            <!-- Modal de edição -->
+            <div x-show="itemEditando !== null" x-cloak class="fixed inset-0 z-[70]">
+                <div class="absolute inset-0 bg-black/40" x-on:click="cancelarEdicaoItem()"></div>
+                <div class="absolute inset-0 flex items-center justify-center p-4">
+                    <div tabindex="0"
+                         x-on:keydown.arrow-up.prevent.stop="abrirEdicaoItemAnterior()"
+                         x-on:keydown.arrow-left.prevent.stop="abrirEdicaoItemAnterior()"
+                         x-on:keydown.arrow-down.prevent.stop="abrirEdicaoItemProximo()"
+                         x-on:keydown.arrow-right.prevent.stop="abrirEdicaoItemProximo()"
+                         x-on:keydown.delete.prevent.stop="excluirItemEmEdicaoRapido()"
+                         x-on:keydown.n.prevent.stop="iniciarInclusaoRapida()"
+                         x-on:keydown.escape.prevent.stop="cancelarEdicaoItem()"
+                         class="relative bg-blue-50 rounded-xl border-2 border-blue-300 shadow-xl w-full max-w-lg p-4 space-y-2">
+                        <p class="text-[10px] font-bold text-blue-700 uppercase">✏️ Editando: <span x-text="itemEmEdicaoAtual ? itemEmEdicaoAtual.patrimonio : ''"></span></p>
+                        <div class="flex gap-2">
+                            <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemAnterior()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) <= 0">⬆️ Anterior</button>
+                            <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemProximo()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) >= itens.length - 1">⬇️ Próximo</button>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Descrição</label>
+                            <textarea x-ref="campoDescricaoEdicao" class="w-full p-2 border rounded text-sm" rows="2" x-model="itemEditForm.descricao" x-on:input.debounce.500ms="onCampoEdicaoAlterado()"></textarea>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <select class="p-2 border rounded text-sm font-bold bg-white" x-model="itemEditForm.tamanho" x-on:change="onCampoEdicaoAlterado()">
+                                <option value="">Tamanho</option>
+                                <option>P</option><option>M</option><option>G</option><option>GG</option>
+                            </select>
+                            <div class="flex flex-col justify-center gap-1 text-[10px] font-bold uppercase">
+                                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.viavel" x-on:change="onCampoEdicaoAlterado()"> Viável</label>
+                                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm" x-on:change="onCampoEdicaoAlterado(); if(itemEditForm.bvm) { $nextTick(function() { $refs.campoDescricaoEdicao.focus(); }); }"> BVM</label>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-500">
+                            Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | ←/↑ anterior | →/↓ próximo | Delete excluir | N incluir | Esc fechar
+                        </p>
+                        <p class="text-[10px] font-bold text-emerald-700" x-text="itemEditAutoStatus" x-show="itemEditAutoStatus"></p>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1">Foto</label>
+                            <input type="file" accept="image/*" capture="environment" class="text-xs w-full file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-500 file:text-white file:font-bold" x-on:change="capturarFotoEdicao($event)">
+                            <div tabindex="0" class="mt-2 p-3 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 cursor-pointer focus:ring-2 focus:ring-amber-500 outline-none text-center" x-on:paste.prevent="colarFotoEdicao($event)" x-on:click="$el.focus(); colarFotoEdicaoBtn()">
+                                <p class="text-xs font-bold text-amber-700">📋 Colar imagem na edição</p>
+                                <p class="text-[10px] text-amber-600 mt-1">Clique aqui e pressione Ctrl+V, ou clique para colar</p>
+                            </div>
+                            <template x-if="itemEditForm.foto">
+                                <img x-bind:src="itemEditForm.foto" class="mt-2 w-24 h-24 rounded-lg border object-cover shadow-sm">
+                            </template>
+                            <div class="mt-2 flex gap-2">
+                                <button type="button" class="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-1 rounded" x-on:click="removerFotoEdicao()" x-bind:disabled="!itemEditForm.foto">🗑 Remover foto</button>
+                            </div>
+                            <template x-if="itemEditNovaFoto"><p class="text-[10px] text-emerald-600 font-bold mt-1">✓ Foto alterada</p></template>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="flex-1 bg-blue-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="salvarItemEmEdicaoAtual()" x-bind:disabled="loading">
+                                <span x-text="loading ? 'Salvando...' : 'Salvar agora'"></span>
+                            </button>
+                            <button class="flex-1 bg-emerald-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="iniciarInclusaoRapida()">Incluir item</button>
+                            <button class="flex-1 bg-slate-200 text-slate-700 text-sm font-bold py-2 rounded-lg" x-on:click="cancelarEdicaoItem()">Fechar</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
