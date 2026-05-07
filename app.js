@@ -423,17 +423,16 @@ function app() {
         handleAtalhosItens: function(e) {
             if (this.aba !== "itens") return;
             if (e.ctrlKey || e.altKey || e.metaKey) return;
-            if (this._isCampoTextoAtivo()) return;
 
             var key = String(e.key || "").toLowerCase();
             if (!key) return;
 
-            if (this.itemEditando !== null && key === "arrowup") {
+            if (this.itemEditando !== null && (key === "arrowup" || key === "arrowleft")) {
                 e.preventDefault();
                 this.abrirEdicaoItemAnterior();
                 return;
             }
-            if (this.itemEditando !== null && key === "arrowdown") {
+            if (this.itemEditando !== null && (key === "arrowdown" || key === "arrowright")) {
                 e.preventDefault();
                 this.abrirEdicaoItemProximo();
                 return;
@@ -448,6 +447,7 @@ function app() {
                 this.iniciarInclusaoRapida();
                 return;
             }
+            if (this._isCampoTextoAtivo()) return;
 
             var alvo = this._getContextoAtalho();
             if (!alvo) return;
