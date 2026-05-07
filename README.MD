@@ -246,6 +246,15 @@ Aba dedicada (`Classif.`) que produz um PDF separado do documento padrão de rec
 
 A avaliação é **persistida** em `patrimonios.avaliacao` e pode ser editada a qualquer momento. A geração do relatório é **bloqueada** enquanto houver itens sem avaliação no processo.
 
+#### Modal de avaliação rápida (foto ampliada)
+
+Para acelerar a triagem visual, a aba `Classif.` possui um modal com a imagem em tamanho grande e classificação sequencial.
+
+- **Como abrir o modal:** clique na miniatura da foto do item ou em `🔍 Abrir foto grande`.
+- **Atalhos do modal:** `1 = Reuso`, `2 = Laudo`, `3 = Descarte`, `Esc = fechar`.
+- **Fluxo automático:** ao avaliar, o sistema salva no banco e abre o próximo item automaticamente.
+- **Fim da sequência:** ao chegar no último item, o modal fecha e mostra confirmação de conclusão.
+
 ---
 
 ## 5. api.js — Camada de Dados
@@ -926,6 +935,8 @@ As fotos são armazenadas como strings base64 diretamente na coluna `foto` da ta
 
 O sistema usa a chave `anon` pública sem autenticação de usuários. As Row Level Security (RLS) policies do Supabase precisam estar configuradas para permitir operações `SELECT`, `INSERT`, `UPDATE` e `DELETE` para a role `anon`. Isso é aceitável para sistema interno de uso controlado.
 
+Se ao salvar processo ou itens aparecer **`42501` / row-level security policy**, execute no SQL Editor o script [`migrations/003_rls_processos_patrimonios_anon.sql`](migrations/003_rls_processos_patrimonios_anon.sql), que cria políticas `FOR ALL` para `anon` (e `authenticated`) em `processos` e `patrimonios`.
+
 ### Importação e duplicatas de patrimônio
 
 O CSV importado pode ter o mesmo número de patrimônio em processos diferentes (167 casos identificados). O sistema importa todos como itens separados — não há constraint de unicidade em `patrimonios.patrimonio` pois o mesmo bem pode aparecer em múltiplos processos de recolhimento ao longo do tempo.
@@ -1124,6 +1135,19 @@ window.APP_CONFIG = {
 | `restaurarBackupCompleto(backup)` | Faz upsert em lotes na ordem correta de FK |
 
 ### 18.10 Troubleshooting (problemas reais encontrados na implantação)
+
+#### `401 Unauthorized` e `42501` ao salvar em `processos` (Supabase REST)
+
+**Sintoma:** no console do navegador, `POST .../rest/v1/processos?...` retorna **401** e/ou promise rejeitada com:
+
+`new row violates row-level security policy (USING expression) for table "processos"` (código **42501**).
+
+**Causas comuns:**
+
+1. **RLS sem política para `anon`:** a tabela `processos` (e muitas vezes `patrimonios`) está com RLS ativada, mas não existe política que permita `INSERT`/`UPDATE` para o papel **`anon`** usado pela chave pública do app.
+2. **401:** chave errada ou inválida em `config.js` / `window.APP_CONFIG` — use a **anon public** key do projeto (Settings → API → `anon` `public`), não a `service_role`. Se a chave foi rotacionada, atualize o deploy. Em alguns casos o 401 aparece junto com falha de política; corrija a chave e as políticas.
+
+**Solução:** rodar no Supabase **SQL Editor** o arquivo [`migrations/003_rls_processos_patrimonios_anon.sql`](migrations/003_rls_processos_patrimonios_anon.sql). Depois confirme em **Authentication → Policies** (ou Table Editor → RLS) que as políticas existem para `processos` e `patrimonios`.
 
 #### Build da Netlify falha com `Secrets scanning found secrets`
 
