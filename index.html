@@ -18,6 +18,9 @@
 </head>
 
 <body class="bg-slate-100 min-h-screen pb-20" x-data="app()" x-init="init()">
+    <div x-show="atalhoToast" x-transition class="fixed top-16 left-1/2 -translate-x-1/2 z-[60] bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-lg">
+        <span x-text="atalhoToast"></span>
+    </div>
 
     <nav class="bg-white shadow-md border-b sticky top-0 z-50">
         <div class="flex justify-around p-2">
@@ -115,6 +118,9 @@
                         </label>
                     </div>
                 </div>
+                <p class="text-[10px] text-slate-500 mb-3">
+                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM
+                </p>
                 <div class="mb-4 p-3 border-2 border-dashed rounded-lg bg-slate-50 text-center">
                     <label class="block text-sm font-bold text-slate-600 mb-2 uppercase">📷 Foto do Item</label>
                     <input type="file" accept="image/*" capture="environment" class="text-sm w-full file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-500 file:text-white file:font-bold" x-on:change="capturarFoto($event)">
@@ -169,9 +175,13 @@
                             <!-- Formulário de edição inline -->
                             <div x-show="itemEditando === i.id" class="p-3 bg-blue-50 rounded-lg border-2 border-blue-300 space-y-2">
                                 <p class="text-[10px] font-bold text-blue-700 uppercase">✏️ Editando: <span x-text="i.patrimonio"></span></p>
+                                <div class="flex gap-2">
+                                    <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemAnterior()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) <= 0">⬆️ Anterior</button>
+                                    <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemProximo()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) >= itens.length - 1">⬇️ Próximo</button>
+                                </div>
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 mb-1">Descrição</label>
-                                    <textarea class="w-full p-2 border rounded text-sm" rows="2" x-model="itemEditForm.descricao"></textarea>
+                                    <textarea x-ref="campoDescricaoEdicao" class="w-full p-2 border rounded text-sm" rows="2" x-model="itemEditForm.descricao"></textarea>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
                                     <select class="p-2 border rounded text-sm font-bold bg-white" x-model="itemEditForm.tamanho">
@@ -180,12 +190,19 @@
                                     </select>
                                     <div class="flex flex-col justify-center gap-1 text-[10px] font-bold uppercase">
                                         <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.viavel"> Viável</label>
-                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm"> BVM</label>
+                                        <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm" x-on:change="if(itemEditForm.bvm) { $nextTick(function() { $refs.campoDescricaoEdicao.focus(); }); }"> BVM</label>
                                     </div>
                                 </div>
+                                <p class="text-[10px] text-slate-500">
+                                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | Shift + ↑/↓ = navegar itens
+                                </p>
                                 <div>
                                     <label class="block text-[10px] font-bold text-slate-500 mb-1">Nova foto (opcional)</label>
                                     <input type="file" accept="image/*" capture="environment" class="text-xs w-full file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-500 file:text-white file:font-bold" x-on:change="capturarFotoEdicao($event)">
+                                    <div tabindex="0" class="mt-2 p-3 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 cursor-pointer focus:ring-2 focus:ring-amber-500 outline-none text-center" x-on:paste.prevent="colarFotoEdicao($event)" x-on:click="$el.focus(); colarFotoEdicaoBtn()">
+                                        <p class="text-xs font-bold text-amber-700">📋 Colar imagem na edição</p>
+                                        <p class="text-[10px] text-amber-600 mt-1">Clique aqui e pressione Ctrl+V, ou clique para colar</p>
+                                    </div>
                                     <template x-if="itemEditNovaFoto"><p class="text-[10px] text-emerald-600 font-bold mt-1">✓ Nova foto selecionada</p></template>
                                 </div>
                                 <div class="flex gap-2">

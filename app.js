@@ -28,6 +28,8 @@ function app() {
         itemEditando: null,
         itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
         itemEditNovaFoto: false,
+        atalhoToast: "",
+        _atalhoToastTimer: null,
 
         // ── backup ────────────────────────────────────
         backupStats: null,
@@ -52,6 +54,8 @@ function app() {
             API.carregarCampus().then(function(data) { self.campus = data; });
             API.carregarUnidades().then(function(data) { self.unidades_db = data; });
             this.carregarBaseCSV();
+            this._keyHandler = function(e) { self.handleAtalhosItens(e); };
+            window.addEventListener("keydown", this._keyHandler);
         },
 
         // =============================================
@@ -170,16 +174,28 @@ function app() {
             if (file) API.processarFoto(file).then(function(foto) { self.item.foto = foto; });
         },
 
+        _extrairImagemClipboard: function(items, onImage) {
+            if (!items) return false;
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].type && items[i].type.indexOf("image") !== -1) {
+                    var blob = items[i].getAsFile ? items[i].getAsFile() : null;
+                    if (blob) {
+                        onImage(blob);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        },
+
         colarFoto: function(e) {
             var self = this;
             var items = e.clipboardData && e.clipboardData.items;
             if (!items) { alert("Navegador não suporta colar imagens."); return; }
-            for (var i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf("image") !== -1) {
-                    var blob = items[i].getAsFile();
-                    if (blob) { API.processarFoto(blob).then(function(foto) { self.item.foto = foto; }); return; }
-                }
-            }
+            var ok = this._extrairImagemClipboard(items, function(blob) {
+                API.processarFoto(blob).then(function(foto) { self.item.foto = foto; });
+            });
+            if (ok) return;
             alert("Nenhuma imagem encontrada. Copie uma imagem primeiro e depois cole aqui (Ctrl+V).");
         },
 
@@ -200,6 +216,151 @@ function app() {
                 }
                 alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
             }).catch(function() { alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V."); });
+        },
+
+        colarFotoEdicao: function(e) {
+            var self = this;
+            var items = e.clipboardData && e.clipboardData.items;
+            if (!items) { alert("Navegador não suporta colar imagens."); return; }
+            var ok = this._extrairImagemClipboard(items, function(blob) {
+                API.processarFoto(blob).then(function(foto) {
+                    self.itemEditForm.foto = foto;
+                    self.itemEditNovaFoto = true;
+                });
+            });
+            if (ok) return;
+            alert("Nenhuma imagem encontrada. Copie uma imagem primeiro e depois cole aqui (Ctrl+V).");
+        },
+
+        colarFotoEdicaoBtn: function() {
+            var self = this;
+            if (!navigator.clipboard || !navigator.clipboard.read) { alert("Clique nesta área e use Ctrl+V para colar a imagem."); return; }
+            navigator.clipboard.read().then(function(items) {
+                for (var i = 0; i < items.length; i++) {
+                    var types = items[i].types;
+                    for (var j = 0; j < types.length; j++) {
+                        if (types[j].indexOf("image") !== -1) {
+                            items[i].getType(types[j]).then(function(blob) {
+                                API.processarFoto(blob).then(function(foto) {
+                                    self.itemEditForm.foto = foto;
+                                    self.itemEditNovaFoto = true;
+                                });
+                            });
+                            return;
+                        }
+                    }
+                }
+                alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
+            }).catch(function() { alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V."); });
+        },
+
+        _focoDescricaoInclusao: function() {
+            if (this.$refs && this.$refs.campoDescricao) {
+                this.$nextTick(function() { this.$refs.campoDescricao.focus(); }.bind(this));
+            }
+        },
+
+        _focoDescricaoEdicao: function() {
+            if (this.$refs && this.$refs.campoDescricaoEdicao) {
+                this.$nextTick(function() { this.$refs.campoDescricaoEdicao.focus(); }.bind(this));
+            }
+        },
+
+        _isCampoTextoAtivo: function() {
+            var el = document.activeElement;
+            if (!el) return false;
+            var tag = (el.tagName || "").toLowerCase();
+            if (el.isContentEditable) return true;
+            return tag === "input" || tag === "textarea" || tag === "select";
+        },
+
+        _getContextoAtalho: function() {
+            if (this.itemEditando !== null) return this.itemEditForm;
+            return this.item;
+        },
+
+        _aplicarAtalhoTamanho: function(key, alvo) {
+            var mapa = { p: "P", m: "M", g: "G", x: "GG" };
+            if (!mapa[key]) return false;
+            alvo.tamanho = mapa[key];
+            this.mostrarAtalhoToast("Tamanho: " + mapa[key]);
+            return true;
+        },
+
+        _aplicarAtalhoFlags: function(key, alvo) {
+            if (key === "0") {
+                alvo.viavel = !alvo.viavel;
+                this.mostrarAtalhoToast("Viável: " + (alvo.viavel ? "Sim" : "Não"));
+                return true;
+            }
+            if (key === "1") {
+                alvo.bvm = !alvo.bvm;
+                this.mostrarAtalhoToast("BVM: " + (alvo.bvm ? "Ativado" : "Desativado"));
+                if (alvo.bvm) {
+                    if (this.itemEditando !== null) this._focoDescricaoEdicao();
+                    else this._focoDescricaoInclusao();
+                }
+                return true;
+            }
+            return false;
+        },
+
+        _indiceItemEditando: function() {
+            if (this.itemEditando === null) return -1;
+            return this.itens.findIndex(function(x) { return x.id === this.itemEditando; }.bind(this));
+        },
+
+        abrirEdicaoItemAnterior: function() {
+            var idx = this._indiceItemEditando();
+            if (idx <= 0) return;
+            this.abrirEdicaoItem(this.itens[idx - 1]);
+            this._focoDescricaoEdicao();
+            this.mostrarAtalhoToast("Item anterior");
+        },
+
+        abrirEdicaoItemProximo: function() {
+            var idx = this._indiceItemEditando();
+            if (idx === -1 || idx >= this.itens.length - 1) return;
+            this.abrirEdicaoItem(this.itens[idx + 1]);
+            this._focoDescricaoEdicao();
+            this.mostrarAtalhoToast("Próximo item");
+        },
+
+        mostrarAtalhoToast: function(texto) {
+            this.atalhoToast = texto;
+            if (this._atalhoToastTimer) clearTimeout(this._atalhoToastTimer);
+            var self = this;
+            this._atalhoToastTimer = setTimeout(function() {
+                self.atalhoToast = "";
+                self._atalhoToastTimer = null;
+            }, 1300);
+        },
+
+        handleAtalhosItens: function(e) {
+            if (this.aba !== "itens") return;
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            if (this._isCampoTextoAtivo()) return;
+
+            var key = String(e.key || "").toLowerCase();
+            if (!key) return;
+
+            if (this.itemEditando !== null && e.shiftKey && key === "arrowup") {
+                e.preventDefault();
+                this.abrirEdicaoItemAnterior();
+                return;
+            }
+            if (this.itemEditando !== null && e.shiftKey && key === "arrowdown") {
+                e.preventDefault();
+                this.abrirEdicaoItemProximo();
+                return;
+            }
+
+            var alvo = this._getContextoAtalho();
+            if (!alvo) return;
+
+            if (this._aplicarAtalhoTamanho(key, alvo) || this._aplicarAtalhoFlags(key, alvo)) {
+                e.preventDefault();
+            }
         },
 
         salvarItem: function() {
