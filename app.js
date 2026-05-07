@@ -1048,7 +1048,11 @@ function app() {
             });
         },
 
-        definirAvaliacaoClassif: function(item, valor) {
+        definirAvaliacaoClassif: function(item, valor, ev) {
+            if (ev) {
+                if (ev.preventDefault) ev.preventDefault();
+                if (ev.stopPropagation) ev.stopPropagation();
+            }
             if (!item || !valor) return;
             if (item._salvandoAval) return;
             var self = this;
@@ -1056,6 +1060,7 @@ function app() {
             item._salvandoAval = true;
             item.avaliacao = valor;
             this.classifItens = this.classifItens.slice();
+            this.mostrarAtalhoToast("Salvando avaliação...");
             var campos = { avaliacao: valor, avaliado_em: new Date().toISOString() };
             API.editarItem(item.id, campos).then(function(atualizado) {
                 var idx = self.classifItens.findIndex(function(x) { return x.id === item.id; });

@@ -373,19 +373,22 @@
                                             <button type="button"
                                                     class="text-[10px] font-bold px-1 py-1 rounded border"
                                                     x-bind:class="i.avaliacao === 'REUSO' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
-                                                    x-on:click.stop.prevent="definirAvaliacaoClassif(i, 'REUSO')"
+                                                    x-on:pointerup.stop.prevent="definirAvaliacaoClassif(i, 'REUSO', $event)"
+                                                    x-on:click.stop.prevent="definirAvaliacaoClassif(i, 'REUSO', $event)"
                                                     x-bind:disabled="i._salvandoAval"
                                                     x-text="i._salvandoAval ? 'Salvando...' : '♻️ Reuso'"></button>
                                             <button type="button"
                                                     class="text-[10px] font-bold px-1 py-1 rounded border"
                                                     x-bind:class="i.avaliacao === 'LAUDO_TECNICO' ? 'bg-amber-600 text-white border-amber-700' : 'bg-amber-50 text-amber-700 border-amber-200'"
-                                                    x-on:click.stop.prevent="definirAvaliacaoClassif(i, 'LAUDO_TECNICO')"
+                                                    x-on:pointerup.stop.prevent="definirAvaliacaoClassif(i, 'LAUDO_TECNICO', $event)"
+                                                    x-on:click.stop.prevent="definirAvaliacaoClassif(i, 'LAUDO_TECNICO', $event)"
                                                     x-bind:disabled="i._salvandoAval"
                                                     x-text="i._salvandoAval ? 'Salvando...' : '📋 Laudo'"></button>
                                             <button type="button"
                                                     class="text-[10px] font-bold px-1 py-1 rounded border"
                                                     x-bind:class="i.avaliacao === 'DESCARTE' ? 'bg-red-600 text-white border-red-700' : 'bg-red-50 text-red-700 border-red-200'"
-                                                    x-on:click.stop.prevent="definirAvaliacaoClassif(i, 'DESCARTE')"
+                                                    x-on:pointerup.stop.prevent="definirAvaliacaoClassif(i, 'DESCARTE', $event)"
+                                                    x-on:click.stop.prevent="definirAvaliacaoClassif(i, 'DESCARTE', $event)"
                                                     x-bind:disabled="i._salvandoAval"
                                                     x-text="i._salvandoAval ? 'Salvando...' : '🗑 Descarte'"></button>
                                         </div>
