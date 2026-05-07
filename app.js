@@ -1052,7 +1052,9 @@ function app() {
             if (!item || !valor) return;
             if (item._salvandoAval) return;
             var self = this;
+            var avaliacaoAnterior = item.avaliacao || "";
             item._salvandoAval = true;
+            item.avaliacao = valor;
             this.classifItens = this.classifItens.slice();
             var campos = { avaliacao: valor, avaliado_em: new Date().toISOString() };
             API.editarItem(item.id, campos).then(function(atualizado) {
@@ -1060,9 +1062,13 @@ function app() {
                 if (idx !== -1) {
                     var preservado = Object.assign({}, atualizado, { _salvandoAval: false });
                     self.classifItens.splice(idx, 1, preservado);
+                    self.mostrarAtalhoToast("Avaliação salva: " + formatarAvaliacao(valor));
+                } else {
+                    self.carregarProcessoClassificacao();
                 }
             }).catch(function() {
                 item._salvandoAval = false;
+                item.avaliacao = avaliacaoAnterior;
                 self.classifItens = self.classifItens.slice();
                 alert("Falha ao salvar avaliação. Tente novamente.");
             });
