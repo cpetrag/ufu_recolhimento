@@ -302,7 +302,7 @@
         </div>
 
         <!-- ================================ ABA CLASSIFICAÇÃO PRÉVIA ================================ -->
-        <div x-show="aba === 'classificacao'" x-cloak class="space-y-4">
+        <div x-show="aba === 'classificacao'" x-cloak class="space-y-4" x-on:keydown.window="classifHandleAtalhoModal($event)">
             <div class="bg-white p-4 rounded-xl shadow border-l-4 border-fuchsia-600">
                 <h2 class="font-bold mb-3 text-fuchsia-700 text-[10px] uppercase text-center">Classificação Prévia de Bens</h2>
                 <input class="w-full p-3 border rounded-lg font-mono text-sm bg-slate-50 mb-3"
@@ -356,10 +356,12 @@
                                 <div class="flex gap-2 items-start p-2 bg-slate-50 rounded-lg border">
                                     <div class="flex-shrink-0">
                                         <template x-if="i.foto">
-                                            <img x-bind:src="i.foto" class="w-12 h-12 object-cover rounded border">
+                                            <button type="button" class="w-12 h-12" x-on:click="abrirClassifModal(i)">
+                                                <img x-bind:src="i.foto" class="w-12 h-12 object-cover rounded border">
+                                            </button>
                                         </template>
                                         <template x-if="!i.foto">
-                                            <div class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400 text-xs">📷</div>
+                                            <button type="button" class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400 text-xs" x-on:click="abrirClassifModal(i)">📷</button>
                                         </template>
                                     </div>
                                     <div class="flex-1 min-w-0">
@@ -369,6 +371,7 @@
                                         </div>
                                         <p class="text-xs text-slate-500 truncate" x-text="i.descricao"></p>
                                         <p class="text-[10px] text-slate-400" x-text="'Tam: ' + (i.tamanho || '—')"></p>
+                                        <button type="button" class="text-[10px] text-blue-700 font-bold underline mb-1" x-on:click="abrirClassifModal(i)">🔍 Abrir foto grande</button>
                                         <div class="grid grid-cols-3 gap-1 mt-1.5">
                                             <button type="button"
                                                     class="text-[10px] font-bold px-1 py-1 rounded border"
@@ -415,6 +418,54 @@
                     </button>
                 </div>
             </template>
+        </div>
+
+        <!-- Modal de avaliação com foto ampliada -->
+        <div x-show="classifModalAberto" x-cloak class="fixed inset-0 z-[80]">
+            <div class="absolute inset-0 bg-black/60" x-on:click="fecharClassifModal()"></div>
+            <div class="absolute inset-0 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs font-bold text-slate-600 uppercase">Avaliação rápida (atalhos: 1 Reuso | 2 Laudo | 3 Descarte)</p>
+                        <button type="button" class="text-sm font-bold text-slate-500" x-on:click="fecharClassifModal()">✕</button>
+                    </div>
+                    <template x-if="classifItemModalAtual">
+                        <div class="space-y-3">
+                            <div class="bg-slate-50 rounded-lg p-2">
+                                <template x-if="classifItemModalAtual.foto">
+                                    <img x-bind:src="classifItemModalAtual.foto" class="w-full max-h-[58vh] object-contain rounded border bg-black">
+                                </template>
+                                <template x-if="!classifItemModalAtual.foto">
+                                    <div class="w-full h-56 rounded border bg-slate-200 flex items-center justify-center text-slate-500">Sem foto</div>
+                                </template>
+                            </div>
+                            <div class="text-xs text-slate-600">
+                                <p><strong>Patrimônio:</strong> <span x-text="classifItemModalAtual.patrimonio"></span></p>
+                                <p><strong>Descrição:</strong> <span x-text="classifItemModalAtual.descricao || '—'"></span></p>
+                                <p><strong>Empresa:</strong> <span x-text="resolverEmpresa(classifItemModalAtual)"></span></p>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button"
+                                        class="p-3 rounded-lg text-xs font-bold uppercase border-2"
+                                        x-bind:class="classifItemModalAtual.avaliacao === 'REUSO' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
+                                        x-bind:disabled="classifItemModalAtual._salvandoAval"
+                                        x-on:click="avaliarClassifModal('REUSO')">1 - Reuso</button>
+                                <button type="button"
+                                        class="p-3 rounded-lg text-xs font-bold uppercase border-2"
+                                        x-bind:class="classifItemModalAtual.avaliacao === 'LAUDO_TECNICO' ? 'bg-amber-600 text-white border-amber-700' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                                        x-bind:disabled="classifItemModalAtual._salvandoAval"
+                                        x-on:click="avaliarClassifModal('LAUDO_TECNICO')">2 - Laudo</button>
+                                <button type="button"
+                                        class="p-3 rounded-lg text-xs font-bold uppercase border-2"
+                                        x-bind:class="classifItemModalAtual.avaliacao === 'DESCARTE' ? 'bg-red-600 text-white border-red-700' : 'bg-red-50 text-red-700 border-red-200'"
+                                        x-bind:disabled="classifItemModalAtual._salvandoAval"
+                                        x-on:click="avaliarClassifModal('DESCARTE')">3 - Descarte</button>
+                            </div>
+                            <p class="text-[11px] text-slate-500">Ao avaliar, salva automaticamente e abre o próximo item.</p>
+                        </div>
+                    </template>
+                </div>
+            </div>
         </div>
 
         <!-- ================================ ABA PROCESSOS ================================ -->

@@ -52,6 +52,8 @@ function app() {
         classifCarregando: false,
         classifErro: null,
         classifGerando: false,
+        classifModalAberto: false,
+        classifModalIndex: -1,
         _classifUltimoClique: "",
         _classifUltimoCliqueTs: 0,
 
@@ -1022,11 +1024,19 @@ function app() {
             return this.classifItens;
         },
 
+        get classifItemModalAtual() {
+            if (!this.classifModalAberto) return null;
+            if (this.classifModalIndex < 0 || this.classifModalIndex >= this.classifItens.length) return null;
+            return this.classifItens[this.classifModalIndex];
+        },
+
         carregarProcessoClassificacao: function() {
             var self = this;
             this.classifErro = null;
             this.classifProcesso = null;
             this.classifItens = [];
+            this.classifModalAberto = false;
+            this.classifModalIndex = -1;
             if (!this.buscaSeiClassif || this.buscaSeiClassif.length < 20) {
                 this.classifErro = "Informe o número SEI completo.";
                 return;
@@ -1050,20 +1060,78 @@ function app() {
             });
         },
 
+        abrirClassifModal: function(item) {
+            if (!item) return;
+            var idx = this.classifItens.findIndex(function(x) { return x.id === item.id; });
+            if (idx === -1) return;
+            this.classifModalIndex = idx;
+            this.classifModalAberto = true;
+        },
+
+        fecharClassifModal: function() {
+            this.classifModalAberto = false;
+            this.classifModalIndex = -1;
+        },
+
+        abrirClassifModalProximo: function() {
+            if (!this.classifModalAberto) return;
+            var prox = this.classifModalIndex + 1;
+            if (prox >= this.classifItens.length) {
+                this.fecharClassifModal();
+                this.mostrarAtalhoToast("Classificação concluída");
+                return;
+            }
+            this.classifModalIndex = prox;
+        },
+
+        avaliarClassifModal: function(valor) {
+            var item = this.classifItemModalAtual;
+            var self = this;
+            if (!item) return;
+            this.definirAvaliacaoClassif(item, valor).then(function(ok) {
+                if (!ok) return;
+                self.abrirClassifModalProximo();
+            });
+        },
+
+        classifHandleAtalhoModal: function(e) {
+            if (!this.classifModalAberto) return;
+            var k = String(e.key || "");
+            if (k === "1") {
+                e.preventDefault();
+                this.avaliarClassifModal("REUSO");
+                return;
+            }
+            if (k === "2") {
+                e.preventDefault();
+                this.avaliarClassifModal("LAUDO_TECNICO");
+                return;
+            }
+            if (k === "3") {
+                e.preventDefault();
+                this.avaliarClassifModal("DESCARTE");
+                return;
+            }
+            if (k === "Escape") {
+                e.preventDefault();
+                this.fecharClassifModal();
+            }
+        },
+
         definirAvaliacaoClassif: function(item, valor, ev) {
             if (ev) {
                 if (ev.preventDefault) ev.preventDefault();
                 if (ev.stopPropagation) ev.stopPropagation();
             }
-            if (!item || !valor) return;
+            if (!item || !valor) return Promise.resolve(false);
             var token = String(item.id || "") + "|" + valor;
             var agora = Date.now();
             if (this._classifUltimoClique === token && (agora - this._classifUltimoCliqueTs) < 450) {
-                return;
+                return Promise.resolve(false);
             }
             this._classifUltimoClique = token;
             this._classifUltimoCliqueTs = agora;
-            if (item._salvandoAval) return;
+            if (item._salvandoAval) return Promise.resolve(false);
             var self = this;
             var avaliacaoAnterior = item.avaliacao || "";
             item._salvandoAval = true;
@@ -1071,7 +1139,7 @@ function app() {
             this.classifItens = this.classifItens.slice();
             this.mostrarAtalhoToast("Salvando avaliação...");
             var campos = { avaliacao: valor, avaliado_em: new Date().toISOString() };
-            API.editarItem(item.id, campos).then(function(atualizado) {
+            return API.editarItem(item.id, campos).then(function(atualizado) {
                 var idx = self.classifItens.findIndex(function(x) { return x.id === item.id; });
                 if (idx !== -1) {
                     var preservado = Object.assign({}, atualizado, { _salvandoAval: false });
@@ -1080,11 +1148,13 @@ function app() {
                 } else {
                     self.carregarProcessoClassificacao();
                 }
+                return true;
             }).catch(function() {
                 item._salvandoAval = false;
                 item.avaliacao = avaliacaoAnterior;
                 self.classifItens = self.classifItens.slice();
                 alert("Falha ao salvar avaliação. Tente novamente.");
+                return false;
             });
         },
 
