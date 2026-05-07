@@ -882,17 +882,36 @@ O CSV importado pode ter o mesmo número de patrimônio em processos diferentes 
 
 ## 18. Módulo de Backup
 
-O módulo de backup oferece **três camadas de proteção** combinadas para minimizar risco de perda de dados.
+O módulo de backup oferece **três camadas de proteção** combinadas para minimizar risco de perda de dados. **Implementado e em produção** (deploy de 07/05/2026).
 
 ### 18.1 Camadas
 
 | Camada | Responsabilidade | Frequência |
 |---|---|---|
-| **1. Banco (Supabase nativo)** | Snapshot diário do Postgres + PITR (no plano Pro) | Automático |
+| **1. Banco (Supabase nativo)** | Snapshot diário do Postgres + PITR (no plano Pro) | Automático (Supabase) |
 | **2. Manual (aba Backup)** | Operador baixa JSON/ZIP do banco para guardar localmente | Sob demanda |
-| **3. Automático (Netlify cron)** | Snapshot diário enviado ao SharePoint via Power Automate | Diário às 03:00 UTC |
+| **3. Automático (Netlify cron)** | Snapshot diário enviado ao OneDrive via Power Automate | Diário às 03:00 UTC (00:00 BRT) |
 
-### 18.2 Aba `🛟 Backup` (cliente)
+### 18.2 Resultado da execução em produção
+
+Primeira execução real (07/05/2026):
+
+```json
+{
+  "ok": true,
+  "duration_ms": 8949,
+  "processos": 311,
+  "patrimonios": 2474,
+  "chunks_enviados": 2,
+  "chunks_total": 2
+}
+```
+
+- 311 processos + 2.474 patrimônios (com fotos em base64) extraídos do Supabase.
+- 2 arquivos gerados no OneDrive: `2026-05-07_00_manifest.json` + `2026-05-07_lote_001.json`.
+- Tempo total: ~9 segundos (bem dentro do limite de 26s do Netlify Function).
+
+### 18.3 Aba `🛟 Backup` (cliente)
 
 Adicionada como 6ª aba no `index.html`. Tem quatro blocos:
 
@@ -907,7 +926,7 @@ Adicionada como 6ª aba no `index.html`. Tem quatro blocos:
 
 **Restaurar** — input de arquivo que valida o JSON, exibe resumo do conteúdo (gerado em, versão, contadores) e exige digitar `RESTAURAR` em maiúsculas + confirmação dupla via `confirm()` antes de executar. A restauração chama `API.restaurarBackupCompleto(json)` que faz upsert em lotes de 100, na ordem correta de foreign keys: `campus → unidades → blocos → processos → patrimonios`.
 
-### 18.3 Backup automático — `netlify/functions/backup-diario.js`
+### 18.4 Backup automático — `netlify/functions/backup-diario.js`
 
 Scheduled Function da Netlify, agendada via `netlify.toml`:
 
@@ -943,31 +962,70 @@ Scheduled Function da Netlify, agendada via `netlify.toml`:
 }
 ```
 
-O **Power Automate** deve receber esse payload e gravar o arquivo no SharePoint na pasta `FileName`. Sugestão de fluxo PA:
+### 18.5 Configuração do Flow no Power Automate
 
-1. Trigger HTTP request.
-2. Action **"Create file"** no SharePoint, com:
-   - Site: biblioteca de backup da DICDE.
-   - Folder Path: `BackupRecolhimento/2026-05-07/` (extrair de `FileName`).
-   - File Name: nome final do arquivo.
-   - File Content: `triggerBody()['ChunkContent']`.
+Configuração real do flow em produção (nome: **"Backup Onedrive"**):
 
-### 18.4 Variáveis de ambiente (Netlify)
+#### Trigger — "Quando uma solicitação HTTP é recebida"
 
-Definir no painel Netlify → Site settings → Environment variables:
+| Campo | Valor |
+|---|---|
+| **Quem pode disparar o fluxo** | `Alguém` (Anyone) — necessário para o Netlify externo conseguir chamar |
+| **Esquema JSON do Corpo** | (ver abaixo) |
 
-| Variável | Descrição | Obrigatória |
+Esquema JSON do Corpo (cole no campo via botão **"Usar conteúdo de exemplo para gerar o esquema"** ou diretamente):
+
+```json
+{
+    "type": "object",
+    "properties": {
+        "SEI": { "type": "string" },
+        "Patrimonio": { "type": "string" },
+        "BackupVersion": { "type": "string" },
+        "BackupDate": { "type": "string" },
+        "FileType": { "type": "string" },
+        "FileName": { "type": "string" },
+        "ChunkIndex": { "type": "integer" },
+        "ChunkTotal": { "type": "integer" },
+        "ChunkContent": { "type": "string" }
+    }
+}
+```
+
+> **Atenção ao case:** os nomes dos campos são case-sensitive ao usar `triggerBody()?['CampoX']`. Se o esquema gerado pelo PA mudar `FileName` para `fileName` (já aconteceu), refaça digitando manualmente como mostrado acima.
+
+#### Action — "OneDrive for Business → Criar arquivo"
+
+| Campo | Tipo de input | Valor |
 |---|---|---|
-| `SUPABASE_URL` | URL do projeto Supabase | Sim |
-| `SUPABASE_SERVICE_KEY` | Service role key do Supabase (não expor no client!) | Sim |
-| `POWER_AUTOMATE_BACKUP_URL` | URL do flow HTTP do Power Automate dedicado a backup | Sim |
-| `POWER_AUTOMATE_URL` | URL do flow de envio de itens individuais (já existia) | Sim |
-| `BACKUP_TRIGGER_TOKEN` | Token Bearer opcional para proteger o endpoint contra disparo manual indevido | Recomendada |
-| `ALLOWED_ORIGIN` | Origem permitida nas chamadas POST do client | Recomendada |
+| **Caminho da Pasta** | Texto literal | `/recolhimento` |
+| **Nome do Arquivo** | **Expressão (chip `fx`)** | `concat(triggerBody()?['BackupDate'], '_', last(split(triggerBody()?['FileName'], '/')))` |
+| **Conteúdo do Arquivo** | **Conteúdo dinâmico (chip do trigger)** | `ChunkContent` |
 
-> **Atenção:** a `SUPABASE_SERVICE_KEY` tem permissão total no banco. **Nunca** colocar em `config.js` ou em qualquer arquivo do front-end.
+> ⚠️ **Importante:** os campos "Nome do Arquivo" e "Conteúdo do Arquivo" precisam ser preenchidos via **chips** do PA (clicando em `fx` para expressão ou ⚡ para conteúdo dinâmico). **Não funciona** apenas digitando o texto da expressão. O sintoma do erro é o nome do arquivo aparecer literalmente como `concat(triggerBody()?['BackupDate']...` na pasta de destino.
 
-### 18.5 `config.public.js` — nova chave
+#### Pré-requisitos no OneDrive
+
+A pasta `/recolhimento` precisa **existir** no OneDrive da conta conectada antes do primeiro disparo, senão a action falha com `404 Not Found`. Criar manualmente em **Meus arquivos → + Criar ou carregar → Pasta → "recolhimento"**.
+
+### 18.6 Variáveis de ambiente (Netlify)
+
+Definir no painel Netlify → **Project configuration → Environment variables**:
+
+| Variável | Valor | Marcar como secret? |
+|---|---|---|
+| `SUPABASE_URL` | `https://oyvvvxpgqhyowvfaepgu.supabase.co` | **❌ NÃO** (já é pública, aparece em `config.public.js`) |
+| `SUPABASE_SERVICE_KEY` | `service_role` key do Supabase | **✅ SIM** |
+| `POWER_AUTOMATE_BACKUP_URL` | URL HTTP do trigger do flow no Power Automate | Opcional |
+| `POWER_AUTOMATE_URL` | URL do flow de envio de itens individuais (já existia) | Opcional |
+| `ALLOWED_ORIGIN` | `https://cpetrag.github.io` (apenas origin, **sem path nem barra final**) | Não |
+| `BACKUP_TRIGGER_TOKEN` | Token Bearer opcional para proteger contra disparo indevido | Opcional |
+
+> ⚠️ **Atenção:** a `SUPABASE_SERVICE_KEY` tem permissão total no banco. **Nunca** colocar em `config.js`, no `config.public.js`, em qualquer arquivo do front-end ou em chat público.
+
+> ⚠️ **NÃO marcar `SUPABASE_URL` como secret no Netlify.** Como ela já consta no `config.public.js` (que é client-side), o secrets scanner do Netlify falha o build com erro `Secrets scanning found secrets in build`.
+
+### 18.7 `config.public.js` — nova chave
 
 ```javascript
 window.APP_CONFIG = {
@@ -978,14 +1036,14 @@ window.APP_CONFIG = {
 };
 ```
 
-### 18.6 Restauração — pontos de atenção
+### 18.8 Restauração — pontos de atenção
 
 - O upsert preserva o `id` (UUID) original do registro do backup. Isso garante que foreign keys continuam consistentes.
 - Registros que existirem no banco com mesmo ID **serão sobrescritos** pelo conteúdo do backup.
 - Registros novos no banco que **não** estão no backup **não** são apagados (a operação é aditiva). Isso é intencional para evitar perda acidental.
 - Se você precisa de um restore "limpo" (apagar tudo e restaurar), faça-o no Supabase Dashboard via SQL (`TRUNCATE patrimonios, processos, blocos, unidades, campus CASCADE`) **antes** de restaurar pelo sistema.
 
-### 18.7 Funções novas em `api.js`
+### 18.9 Funções novas em `api.js`
 
 | Função | Descrição |
 |---|---|
@@ -993,9 +1051,54 @@ window.APP_CONFIG = {
 | `exportarBackupCompleto({ incluirFotos })` | Retorna o objeto JSON completo do backup |
 | `restaurarBackupCompleto(backup)` | Faz upsert em lotes na ordem correta de FK |
 
-### 18.8 Recomendações operacionais
+### 18.10 Troubleshooting (problemas reais encontrados na implantação)
+
+#### Build da Netlify falha com `Secrets scanning found secrets`
+
+**Sintoma:** logs do deploy mostram:
+```
+Secret env var "SUPABASE_URL"'s value detected: found value at line 124 in README.MD
+```
+
+**Causa:** a variável `SUPABASE_URL` foi marcada como secret no Netlify, mas o valor dela (URL pública) também aparece em arquivos do repositório (`config.public.js`, `index-single.html`, `README.MD`). O scanner está corretamente bloqueando o paradoxo.
+
+**Solução:** desmarcar a opção "Contains secret values" na variável `SUPABASE_URL`. A `SUPABASE_URL` **não é segredo** — quem precisa ser secret é a `SUPABASE_SERVICE_KEY`.
+
+#### Erro de CORS ao chamar `/.netlify/functions/backup-diario` do GitHub Pages
+
+**Sintoma:** no console do navegador:
+```
+Access to fetch ... has been blocked by CORS policy: ...
+'Access-Control-Allow-Origin' header has a value 'https://cpetrag.github.io/ufu_recolhimento/'
+that is not equal to the supplied origin
+```
+
+**Causa:** `ALLOWED_ORIGIN` configurada como `https://cpetrag.github.io/ufu_recolhimento/` (com path e/ou barra final). O cabeçalho HTTP `Access-Control-Allow-Origin` aceita apenas **scheme + host + port**, sem path.
+
+**Solução:** alterar `ALLOWED_ORIGIN` para `https://cpetrag.github.io` (apenas origin, sem path, sem barra final). Force redeploy depois.
+
+#### Arquivo gerado no OneDrive com nome literal (`concat(triggerBody()...`) e tamanho minúsculo (12 bytes)
+
+**Sintoma:** após o primeiro disparo do backup, o arquivo aparece no OneDrive mas o nome é a própria expressão e o conteúdo é a string `ChunkContent` (12 caracteres).
+
+**Causa:** as expressões foram digitadas como **texto simples** nos campos da action SharePoint/OneDrive, em vez de inseridas via chips de **expressão** ou **conteúdo dinâmico**.
+
+**Solução:** apagar o conteúdo dos campos e reinserir:
+- "Nome do Arquivo": clicar no ícone `fx` → aba **Função** → colar a expressão → **Atualizar**.
+- "Conteúdo do Arquivo": clicar no ícone ⚡ → aba **Conteúdo dinâmico** → expandir "manual" → clicar em **Ver mais (9)** → selecionar **ChunkContent**.
+
+Confirmar que ambos viraram chips coloridos no campo (não texto editável caractere por caractere).
+
+#### URL HTTP do Power Automate ficou exposta
+
+**Sintoma:** a URL com `?sig=...` foi compartilhada em chat ou commit.
+
+**Mitigação:** o flow HTTP só cria arquivos na pasta `/recolhimento` do OneDrive — quem tiver a URL pode criar arquivos lixo, mas não há vazamento de dados. Mesmo assim, **regenerar a URL** removendo e recriando o trigger HTTP no PA, depois atualizar `POWER_AUTOMATE_BACKUP_URL` no Netlify.
+
+### 18.11 Recomendações operacionais
 
 - Manter o backup do Supabase (Pro) ativado como **rede de segurança principal**.
-- Disparar um backup manual antes de qualquer operação sensível (importação grande, mudança de schema).
-- Verificar periodicamente os arquivos no SharePoint para confirmar que o cron está funcionando.
-- Manter o ZIP mensal arquivado fora do SharePoint (por exemplo, num pendrive da DICDE).
+- Disparar um backup manual antes de qualquer operação sensível (importação grande, mudança de schema, deletes em massa).
+- Verificar periodicamente o OneDrive `/recolhimento` para confirmar que o cron está rodando (devem aparecer 2+ arquivos novos por dia, com nome iniciando pela data).
+- Migrar arquivos com mais de 30 dias para uma pasta de arquivamento (ex: `/recolhimento/historico/`) para manter a pasta principal organizada.
+- Considerar arquivar o ZIP mensal manual fora do OneDrive (ex: um drive da DICDE) — defesa em profundidade caso a conta `cpetrag@ufu.br` fique inacessível.
