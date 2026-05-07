@@ -52,6 +52,8 @@ function app() {
         classifCarregando: false,
         classifErro: null,
         classifGerando: false,
+        _classifUltimoClique: "",
+        _classifUltimoCliqueTs: 0,
 
         // ── edição de item ────────────────────────────
         itemEditando: null,
@@ -1054,6 +1056,13 @@ function app() {
                 if (ev.stopPropagation) ev.stopPropagation();
             }
             if (!item || !valor) return;
+            var token = String(item.id || "") + "|" + valor;
+            var agora = Date.now();
+            if (this._classifUltimoClique === token && (agora - this._classifUltimoCliqueTs) < 450) {
+                return;
+            }
+            this._classifUltimoClique = token;
+            this._classifUltimoCliqueTs = agora;
             if (item._salvandoAval) return;
             var self = this;
             var avaliacaoAnterior = item.avaliacao || "";
