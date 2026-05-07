@@ -176,7 +176,15 @@
                             </div>
 
                             <!-- Formulário de edição inline -->
-                            <div x-show="itemEditando === i.id" class="p-3 bg-blue-50 rounded-lg border-2 border-blue-300 space-y-2">
+                            <div x-show="itemEditando === i.id"
+                                 tabindex="0"
+                                 x-on:keydown.arrow-up.prevent.stop="abrirEdicaoItemAnterior()"
+                                 x-on:keydown.arrow-left.prevent.stop="abrirEdicaoItemAnterior()"
+                                 x-on:keydown.arrow-down.prevent.stop="abrirEdicaoItemProximo()"
+                                 x-on:keydown.arrow-right.prevent.stop="abrirEdicaoItemProximo()"
+                                 x-on:keydown.delete.prevent.stop="excluirItemEmEdicaoRapido()"
+                                 x-on:keydown.n.prevent.stop="iniciarInclusaoRapida()"
+                                 class="p-3 bg-blue-50 rounded-lg border-2 border-blue-300 space-y-2">
                                 <p class="text-[10px] font-bold text-blue-700 uppercase">✏️ Editando: <span x-text="i.patrimonio"></span></p>
                                 <div class="flex gap-2">
                                     <button class="flex-1 bg-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg disabled:opacity-50" x-on:click="abrirEdicaoItemAnterior()" x-bind:disabled="itens.findIndex(x => x.id === itemEditando) <= 0">⬆️ Anterior</button>
