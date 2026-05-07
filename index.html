@@ -36,6 +36,9 @@
             <button x-on:click="aba = 'busca'" x-bind:class="aba === 'busca' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>🔍</span><span>Busca</span>
             </button>
+            <button x-on:click="aba = 'backup'; carregarEstatisticasBackup()" x-bind:class="aba === 'backup' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
+                <span>🛟</span><span>Backup</span>
+            </button>
         </div>
     </nav>
 
@@ -408,6 +411,126 @@
                     </template>
                 </div>
             </template>
+        </div>
+
+        <!-- ================================ ABA BACKUP ================================ -->
+        <div x-show="aba === 'backup'" x-cloak class="space-y-4">
+
+            <!-- Estatísticas -->
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-sky-500">
+                <h2 class="font-bold text-sky-700 text-[10px] uppercase tracking-widest text-center mb-3">Estado do Banco de Dados</h2>
+                <div x-show="backupCarregandoStats" class="text-center text-xs text-slate-400 py-3">⏳ Carregando estatísticas...</div>
+                <div x-show="!backupCarregandoStats && backupStats" class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-slate-50 rounded-lg p-2">
+                        <p class="text-xl font-black text-sky-700" x-text="backupStats?.processos || 0"></p>
+                        <p class="text-[9px] uppercase text-slate-400 font-bold">Processos</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-2">
+                        <p class="text-xl font-black text-sky-700" x-text="backupStats?.patrimonios || 0"></p>
+                        <p class="text-[9px] uppercase text-slate-400 font-bold">Itens</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-2">
+                        <p class="text-xl font-black text-sky-700" x-text="(backupStats?.campus || 0) + ' / ' + (backupStats?.blocos || 0)"></p>
+                        <p class="text-[9px] uppercase text-slate-400 font-bold">Campus / Blocos</p>
+                    </div>
+                </div>
+                <button x-show="!backupCarregandoStats" class="mt-3 w-full text-[10px] bg-slate-100 text-slate-600 font-bold uppercase py-1.5 rounded" x-on:click="carregarEstatisticasBackup()">🔄 Atualizar</button>
+            </div>
+
+            <!-- Exportar -->
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-emerald-500 space-y-3">
+                <h2 class="font-bold text-emerald-700 text-[10px] uppercase tracking-widest text-center">📥 Exportar Backup Manual</h2>
+                <p class="text-[11px] text-slate-500 text-center">Baixe uma cópia completa do banco para guardar em local seguro.</p>
+
+                <label class="flex items-center gap-2 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg cursor-pointer">
+                    <input type="checkbox" x-model="backupIncluirFotos">
+                    <span>Incluir fotos no JSON (arquivo fica grande)</span>
+                </label>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button class="bg-emerald-600 text-white text-[11px] font-bold uppercase py-3 rounded-lg disabled:bg-slate-300"
+                            x-on:click="exportarBackupJSON()" x-bind:disabled="backupExportando || backupExportandoZIP">
+                        <span x-text="backupExportando ? '⏳ Gerando...' : '📄 Baixar JSON'"></span>
+                    </button>
+                    <button class="bg-teal-600 text-white text-[11px] font-bold uppercase py-3 rounded-lg disabled:bg-slate-300"
+                            x-on:click="exportarBackupZIP()" x-bind:disabled="backupExportando || backupExportandoZIP">
+                        <span x-text="backupExportandoZIP ? '⏳ Gerando ZIP...' : '📦 Baixar ZIP + Fotos'"></span>
+                    </button>
+                </div>
+
+                <div x-show="backupResultado && backupResultado.tipo === 'export'"
+                     x-bind:class="backupResultado && backupResultado.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'"
+                     class="text-[11px] font-bold p-2 rounded">
+                    <span x-text="backupResultado?.mensagem"></span>
+                </div>
+            </div>
+
+            <!-- Backup automático -->
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-violet-500 space-y-3">
+                <h2 class="font-bold text-violet-700 text-[10px] uppercase tracking-widest text-center">🤖 Backup Automático</h2>
+                <p class="text-[11px] text-slate-500 text-center">
+                    Backup diário enviado ao SharePoint via Power Automate (configurado no servidor).
+                </p>
+                <button class="w-full bg-violet-600 text-white text-[11px] font-bold uppercase py-3 rounded-lg disabled:bg-slate-300"
+                        x-on:click="dispararBackupAutomaticoAgora()" x-bind:disabled="backupAutoEnviando">
+                    <span x-text="backupAutoEnviando ? '⏳ Disparando...' : '⚡ Forçar backup agora'"></span>
+                </button>
+                <div x-show="backupAutoMensagem"
+                     x-bind:class="backupAutoMensagem && backupAutoMensagem.ok ? 'bg-violet-50 text-violet-700' : 'bg-red-50 text-red-700'"
+                     class="text-[11px] font-bold p-2 rounded">
+                    <span x-text="backupAutoMensagem?.texto"></span>
+                </div>
+            </div>
+
+            <!-- Restaurar -->
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-red-500 space-y-3">
+                <h2 class="font-bold text-red-700 text-[10px] uppercase tracking-widest text-center">📤 Restaurar Backup</h2>
+                <div class="bg-red-50 border border-red-200 rounded-lg p-3 text-[11px] text-red-700">
+                    <p class="font-bold mb-1">⚠️ Operação destrutiva</p>
+                    <p>Restaurar sobrescreve registros existentes com mesmo ID. Use apenas em emergência.</p>
+                </div>
+
+                <input type="file" accept="application/json,.json" class="text-[11px] w-full file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-red-100 file:text-red-700 file:font-bold"
+                       x-on:change="selecionarArquivoRestauracao($event)">
+
+                <div x-show="backupArquivoErro" class="text-[11px] font-bold text-red-700 bg-red-50 p-2 rounded" x-text="backupArquivoErro"></div>
+
+                <div x-show="backupArquivoConteudo" class="bg-slate-50 rounded-lg p-3 space-y-2">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase">Conteúdo do arquivo</p>
+                    <ul class="text-[11px] text-slate-700 space-y-0.5">
+                        <li>📅 Gerado em: <strong x-text="backupArquivoConteudo?.generated_at?.substring(0, 19).replace('T', ' ') || '—'"></strong></li>
+                        <li>📋 Versão: <strong x-text="backupArquivoConteudo?.version"></strong></li>
+                        <li>📁 Processos: <strong x-text="backupArquivoConteudo?.counts?.processos || 0"></strong></li>
+                        <li>🪑 Patrimônios: <strong x-text="backupArquivoConteudo?.counts?.patrimonios || 0"></strong></li>
+                        <li>🏢 Campus / Blocos: <strong x-text="(backupArquivoConteudo?.counts?.campus || 0) + ' / ' + (backupArquivoConteudo?.counts?.blocos || 0)"></strong></li>
+                        <li>📷 Inclui fotos: <strong x-text="backupArquivoConteudo?.include_photos ? 'Sim' : 'Não'"></strong></li>
+                    </ul>
+
+                    <div class="pt-2 border-t border-slate-200">
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Digite RESTAURAR para confirmar</label>
+                        <input class="w-full p-2 border-2 border-red-300 rounded-lg text-sm font-mono bg-white"
+                               x-model="backupConfirmacao" placeholder="RESTAURAR">
+                    </div>
+
+                    <div class="flex gap-2 pt-1">
+                        <button class="flex-1 bg-red-600 text-white text-[11px] font-bold uppercase py-2 rounded-lg disabled:bg-slate-300"
+                                x-on:click="executarRestauracaoBackup()"
+                                x-bind:disabled="backupRestaurando || backupConfirmacao !== 'RESTAURAR'">
+                            <span x-text="backupRestaurando ? '⏳ Restaurando...' : '🔄 Confirmar restauração'"></span>
+                        </button>
+                        <button class="bg-slate-200 text-slate-700 text-[11px] font-bold uppercase py-2 px-4 rounded-lg"
+                                x-on:click="cancelarRestauracao()" x-bind:disabled="backupRestaurando">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+
+                <div x-show="backupResultado && backupResultado.tipo === 'restore'"
+                     x-bind:class="backupResultado && backupResultado.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'"
+                     class="text-[11px] font-bold p-2 rounded">
+                    <span x-text="backupResultado?.mensagem"></span>
+                </div>
+            </div>
         </div>
 
     </div>

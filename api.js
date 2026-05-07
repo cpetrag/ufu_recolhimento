@@ -182,6 +182,122 @@ function enviarParaSharePoint(processo, itens) {
 }
 
 // =============================================
+// BACKUP — EXPORT/IMPORT
+// =============================================
+var BACKUP_VERSION = "1.0";
+var BACKUP_PAGE_SIZE = 200;
+
+function _buscarTudoPaginado(tabela, colunas) {
+    function pagina(from, acumulado) {
+        return db.from(tabela)
+            .select(colunas || "*")
+            .order("created_at", { ascending: true, nullsFirst: false })
+            .range(from, from + BACKUP_PAGE_SIZE - 1)
+            .then(function(r) {
+                if (r.error) throw r.error;
+                var bloco = r.data || [];
+                var total = acumulado.concat(bloco);
+                if (bloco.length === BACKUP_PAGE_SIZE) return pagina(from + BACKUP_PAGE_SIZE, total);
+                return total;
+            });
+    }
+    return pagina(0, []);
+}
+
+function _buscarTabelaSimples(tabela) {
+    return db.from(tabela).select("*").then(function(r) {
+        if (r.error) throw r.error;
+        return r.data || [];
+    });
+}
+
+function exportarBackupCompleto(opcoes) {
+    var incluirFotos = !opcoes || opcoes.incluirFotos !== false;
+    var colunasPatrimonios = incluirFotos ? "*" : "id, processo_id, patrimonio, descricao, tamanho, viavel, bvm, situacao, enviado_sharepoint, created_at";
+    return Promise.all([
+        _buscarTabelaSimples("campus"),
+        _buscarTabelaSimples("blocos"),
+        _buscarTabelaSimples("unidades"),
+        _buscarTudoPaginado("processos", "*"),
+        _buscarTudoPaginado("patrimonios", colunasPatrimonios)
+    ]).then(function(dados) {
+        return {
+            version: BACKUP_VERSION,
+            generated_at: new Date().toISOString(),
+            include_photos: incluirFotos,
+            counts: {
+                campus: dados[0].length,
+                blocos: dados[1].length,
+                unidades: dados[2].length,
+                processos: dados[3].length,
+                patrimonios: dados[4].length
+            },
+            data: {
+                campus: dados[0],
+                blocos: dados[1],
+                unidades: dados[2],
+                processos: dados[3],
+                patrimonios: dados[4]
+            }
+        };
+    });
+}
+
+function obterEstatisticasBackup() {
+    function contar(tabela) {
+        return db.from(tabela).select("id", { count: "exact", head: true }).then(function(r) {
+            if (r.error) throw r.error;
+            return r.count || 0;
+        });
+    }
+    return Promise.all([
+        contar("campus"), contar("blocos"), contar("unidades"),
+        contar("processos"), contar("patrimonios")
+    ]).then(function(c) {
+        return { campus: c[0], blocos: c[1], unidades: c[2], processos: c[3], patrimonios: c[4] };
+    });
+}
+
+function _upsertEmLotes(tabela, registros, conflictKey) {
+    if (!registros || registros.length === 0) return Promise.resolve(0);
+    var LOTE = 100;
+    function processar(idx, total) {
+        if (idx >= registros.length) return Promise.resolve(total);
+        var lote = registros.slice(idx, idx + LOTE);
+        var op = db.from(tabela).upsert(lote, conflictKey ? { onConflict: conflictKey } : undefined);
+        return op.then(function(r) {
+            if (r.error) throw new Error("Erro em " + tabela + ": " + r.error.message);
+            return processar(idx + LOTE, total + lote.length);
+        });
+    }
+    return processar(0, 0);
+}
+
+function restaurarBackupCompleto(backup) {
+    if (!backup || !backup.version || !backup.data) {
+        return Promise.reject(new Error("Arquivo de backup inválido."));
+    }
+    var d = backup.data;
+    return _upsertEmLotes("campus", d.campus || [], "id")
+        .then(function() { return _upsertEmLotes("unidades", d.unidades || [], "id"); })
+        .then(function() { return _upsertEmLotes("blocos", d.blocos || [], "id"); })
+        .then(function() { return _upsertEmLotes("processos", d.processos || [], "id"); })
+        .then(function() { return _upsertEmLotes("patrimonios", d.patrimonios || [], "id"); })
+        .then(function() {
+            return {
+                ok: true,
+                restaurado: {
+                    campus: (d.campus || []).length,
+                    blocos: (d.blocos || []).length,
+                    unidades: (d.unidades || []).length,
+                    processos: (d.processos || []).length,
+                    patrimonios: (d.patrimonios || []).length
+                }
+            };
+        });
+}
+
+// =============================================
 // EXPORTAR
 // =============================================
 window.API = {
@@ -193,5 +309,9 @@ window.API = {
     salvarProcesso: salvarProcesso, salvarItem: salvarItem,
     editarItem: editarItem, excluirItem: excluirItem, excluirProcesso: excluirProcesso,
     listarProcessos: listarProcessos,
-    enviarItemSharePoint: enviarItemSharePoint, enviarParaSharePoint: enviarParaSharePoint
+    enviarItemSharePoint: enviarItemSharePoint, enviarParaSharePoint: enviarParaSharePoint,
+    exportarBackupCompleto: exportarBackupCompleto,
+    obterEstatisticasBackup: obterEstatisticasBackup,
+    restaurarBackupCompleto: restaurarBackupCompleto,
+    BACKUP_VERSION: BACKUP_VERSION
 };

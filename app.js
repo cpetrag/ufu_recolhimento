@@ -29,6 +29,21 @@ function app() {
         itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
         itemEditNovaFoto: false,
 
+        // ── backup ────────────────────────────────────
+        backupStats: null,
+        backupCarregandoStats: false,
+        backupExportando: false,
+        backupExportandoZIP: false,
+        backupIncluirFotos: true,
+        backupArquivo: null,
+        backupArquivoConteudo: null,
+        backupArquivoErro: null,
+        backupRestaurando: false,
+        backupConfirmacao: "",
+        backupResultado: null,
+        backupAutoEnviando: false,
+        backupAutoMensagem: null,
+
         // =============================================
         // INIT
         // =============================================
@@ -592,6 +607,234 @@ function app() {
                     self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true;
                 });
             }).catch(function() { self.buscaGlobalCarregando = false; self.buscaGlobalFeita = true; });
+        },
+
+        // =============================================
+        // BACKUP
+        // =============================================
+        carregarEstatisticasBackup: function() {
+            var self = this;
+            this.backupCarregandoStats = true;
+            this.backupResultado = null;
+            API.obterEstatisticasBackup()
+                .then(function(stats) { self.backupStats = stats; self.backupCarregandoStats = false; })
+                .catch(function() { self.backupStats = null; self.backupCarregandoStats = false; });
+        },
+
+        _baixarArquivo: function(blob, nome) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = url; a.download = nome;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+        },
+
+        _timestampArquivo: function() {
+            var d = new Date();
+            var pad = function(n) { return String(n).padStart(2, "0"); };
+            return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "_" + pad(d.getHours()) + pad(d.getMinutes());
+        },
+
+        exportarBackupJSON: function() {
+            var self = this;
+            if (this.backupExportando) return;
+            this.backupExportando = true;
+            this.backupResultado = null;
+            API.exportarBackupCompleto({ incluirFotos: this.backupIncluirFotos }).then(function(backup) {
+                var json = JSON.stringify(backup);
+                var blob = new Blob([json], { type: "application/json;charset=utf-8" });
+                var nome = "backup_recolhimento_" + self._timestampArquivo() + (self.backupIncluirFotos ? "_completo" : "_metadados") + ".json";
+                self._baixarArquivo(blob, nome);
+                var mb = (blob.size / (1024 * 1024)).toFixed(2);
+                self.backupResultado = { tipo: "export", ok: true, mensagem: "✓ Backup gerado: " + nome + " (" + mb + " MB)" };
+                self.backupExportando = false;
+            }).catch(function(err) {
+                self.backupResultado = { tipo: "export", ok: false, mensagem: "❌ Falha ao exportar: " + (err && err.message ? err.message : "erro desconhecido") };
+                self.backupExportando = false;
+            });
+        },
+
+        _carregarJSZip: function() {
+            if (window.JSZip) return Promise.resolve(window.JSZip);
+            return new Promise(function(resolve, reject) {
+                var s = document.createElement("script");
+                s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+                s.onload = function() { resolve(window.JSZip); };
+                s.onerror = function() { reject(new Error("Falha ao carregar JSZip.")); };
+                document.head.appendChild(s);
+            });
+        },
+
+        _sanitizarNomeArquivo: function(s) {
+            return String(s || "").replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_");
+        },
+
+        _base64ParaBlob: function(dataUrl) {
+            try {
+                var virgula = dataUrl.indexOf(",");
+                var meta = dataUrl.substring(5, virgula);
+                var mime = (meta.split(";")[0]) || "image/jpeg";
+                var bin = atob(dataUrl.substring(virgula + 1));
+                var len = bin.length;
+                var bytes = new Uint8Array(len);
+                for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+                return new Blob([bytes], { type: mime });
+            } catch (e) { return null; }
+        },
+
+        exportarBackupZIP: function() {
+            var self = this;
+            if (this.backupExportandoZIP) return;
+            this.backupExportandoZIP = true;
+            this.backupResultado = null;
+            this._carregarJSZip().then(function(JSZip) {
+                return API.exportarBackupCompleto({ incluirFotos: true }).then(function(backup) {
+                    var zip = new JSZip();
+                    var backupSemFotos = JSON.parse(JSON.stringify(backup));
+                    var processosPorId = {};
+                    (backup.data.processos || []).forEach(function(p) { processosPorId[p.id] = p; });
+                    var fotosDir = zip.folder("fotos");
+                    var contFotos = 0;
+                    (backup.data.patrimonios || []).forEach(function(it, idx) {
+                        if (it.foto && typeof it.foto === "string" && it.foto.indexOf("data:image") === 0) {
+                            var blob = self._base64ParaBlob(it.foto);
+                            if (blob) {
+                                var proc = processosPorId[it.processo_id];
+                                var seiSan = self._sanitizarNomeArquivo(proc ? proc.sei : "sem_processo");
+                                var nome = seiSan + "/" + self._sanitizarNomeArquivo(it.patrimonio || ("item_" + idx)) + "_" + (it.id || idx) + ".jpg";
+                                fotosDir.file(nome, blob);
+                                contFotos++;
+                            }
+                        }
+                        if (backupSemFotos.data && backupSemFotos.data.patrimonios && backupSemFotos.data.patrimonios[idx]) {
+                            backupSemFotos.data.patrimonios[idx].foto = "";
+                        }
+                    });
+                    backupSemFotos.include_photos = false;
+                    zip.file("backup.json", JSON.stringify(backupSemFotos));
+                    zip.file("LEIA-ME.txt",
+                        "Backup do Sistema de Recolhimento UFU\n" +
+                        "Gerado em: " + backup.generated_at + "\n" +
+                        "Versao do backup: " + backup.version + "\n\n" +
+                        "Conteudo:\n" +
+                        "- backup.json: dados completos do banco (sem fotos embutidas)\n" +
+                        "- fotos/<SEI>/<patrimonio>_<id>.jpg: fotos extraidas (" + contFotos + " arquivos)\n\n" +
+                        "Para restaurar:\n" +
+                        "1. Use o arquivo backup.json na aba Backup -> Restaurar.\n" +
+                        "2. As fotos do ZIP servem como copia adicional segura.\n");
+                    return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } })
+                        .then(function(blob) {
+                            var nome = "backup_recolhimento_" + self._timestampArquivo() + ".zip";
+                            self._baixarArquivo(blob, nome);
+                            var mb = (blob.size / (1024 * 1024)).toFixed(2);
+                            self.backupResultado = { tipo: "export", ok: true, mensagem: "✓ ZIP gerado: " + nome + " (" + mb + " MB, " + contFotos + " fotos)" };
+                            self.backupExportandoZIP = false;
+                        });
+                });
+            }).catch(function(err) {
+                self.backupResultado = { tipo: "export", ok: false, mensagem: "❌ Falha ao gerar ZIP: " + (err && err.message ? err.message : "erro desconhecido") };
+                self.backupExportandoZIP = false;
+            });
+        },
+
+        selecionarArquivoRestauracao: function(e) {
+            var self = this;
+            this.backupArquivo = null;
+            this.backupArquivoConteudo = null;
+            this.backupArquivoErro = null;
+            this.backupConfirmacao = "";
+            var file = e.target.files && e.target.files[0];
+            if (!file) return;
+            if (file.size > 500 * 1024 * 1024) {
+                this.backupArquivoErro = "Arquivo muito grande (>500MB).";
+                return;
+            }
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    var conteudo = JSON.parse(ev.target.result);
+                    if (!conteudo || !conteudo.version || !conteudo.data) {
+                        self.backupArquivoErro = "Arquivo não parece ser um backup válido (sem campo version/data).";
+                        return;
+                    }
+                    self.backupArquivo = { nome: file.name, tamanho: file.size };
+                    self.backupArquivoConteudo = conteudo;
+                } catch (err) {
+                    self.backupArquivoErro = "JSON inválido: " + err.message;
+                }
+            };
+            reader.onerror = function() { self.backupArquivoErro = "Erro ao ler o arquivo."; };
+            reader.readAsText(file);
+        },
+
+        executarRestauracaoBackup: function() {
+            var self = this;
+            if (!this.backupArquivoConteudo) return;
+            if (this.backupConfirmacao !== "RESTAURAR") {
+                alert("Digite RESTAURAR (em maiúsculas) no campo de confirmação para prosseguir.");
+                return;
+            }
+            if (!confirm("Esta operação vai sobrescrever registros existentes (mesmo ID). Continuar?")) return;
+            this.backupRestaurando = true;
+            this.backupResultado = null;
+            API.restaurarBackupCompleto(this.backupArquivoConteudo).then(function(r) {
+                self.backupRestaurando = false;
+                self.backupResultado = {
+                    tipo: "restore", ok: true,
+                    mensagem: "✓ Restauração concluída — " +
+                        r.restaurado.campus + " campus, " +
+                        r.restaurado.unidades + " unidades, " +
+                        r.restaurado.blocos + " blocos, " +
+                        r.restaurado.processos + " processos, " +
+                        r.restaurado.patrimonios + " patrimônios."
+                };
+                self.backupArquivo = null;
+                self.backupArquivoConteudo = null;
+                self.backupConfirmacao = "";
+                self.carregarEstatisticasBackup();
+            }).catch(function(err) {
+                self.backupRestaurando = false;
+                self.backupResultado = {
+                    tipo: "restore", ok: false,
+                    mensagem: "❌ Falha na restauração: " + (err && err.message ? err.message : "erro desconhecido")
+                };
+            });
+        },
+
+        cancelarRestauracao: function() {
+            this.backupArquivo = null;
+            this.backupArquivoConteudo = null;
+            this.backupArquivoErro = null;
+            this.backupConfirmacao = "";
+        },
+
+        dispararBackupAutomaticoAgora: function() {
+            var self = this;
+            var url = (window.APP_CONFIG || {}).BACKUP_TRIGGER_URL || "";
+            if (!url) {
+                this.backupAutoMensagem = { ok: false, texto: "URL do backup automático (BACKUP_TRIGGER_URL) não configurada em config.js." };
+                return;
+            }
+            if (!confirm("Disparar backup automático agora? Pode levar alguns minutos.")) return;
+            this.backupAutoEnviando = true;
+            this.backupAutoMensagem = null;
+            fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trigger: "manual" }) })
+                .then(function(r) {
+                    if (!r.ok) return r.text().then(function(t) { throw new Error(t || ("HTTP " + r.status)); });
+                    return r.json().catch(function() { return {}; });
+                })
+                .then(function(result) {
+                    self.backupAutoEnviando = false;
+                    self.backupAutoMensagem = {
+                        ok: true,
+                        texto: "✓ Backup automático disparado." + (result && result.processos ? " (" + result.processos + " processos enviados)" : "")
+                    };
+                })
+                .catch(function(err) {
+                    self.backupAutoEnviando = false;
+                    self.backupAutoMensagem = { ok: false, texto: "❌ Falha: " + (err && err.message ? err.message : "erro desconhecido") };
+                });
         }
     };
 }
