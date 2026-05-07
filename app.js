@@ -204,15 +204,34 @@ function app() {
             API.carregarBlocos(this.processo.campus_id).then(function(data) { self.blocos = data; });
         },
 
+        limparFormularioProcesso: function(manterSei) {
+            var sei = manterSei !== undefined ? manterSei : "";
+            this.processoId = null;
+            this.processo = { sei: sei, pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" };
+            this.blocos = [];
+            this.itens = [];
+            this.itemEditando = null;
+        },
+
         buscarProcessoExistente: function() {
             var self = this;
-            API.buscarProcessoPorSEI(this.processo.sei).then(function(data) {
+            var sei = String(this.processo.sei || "").trim();
+            if (sei.length < 20) {
+                if (this.processoId) {
+                    this.limparFormularioProcesso(sei);
+                }
+                return;
+            }
+            API.buscarProcessoPorSEI(sei).then(function(data) {
                 if (data) {
-                    self.processo = data; self.processoId = data.id;
+                    self.processo = data;
+                    self.processoId = data.id;
                     self.carregarBlocos();
                     API.carregarItensProcesso(data.id).then(function(itens) { self.itens = itens; });
                     alert("Processo carregado!");
                     self.aba = "itens";
+                } else {
+                    self.limparFormularioProcesso(sei);
                 }
             });
         },
@@ -223,8 +242,14 @@ function app() {
             if (!this.processo.pro_reitoria_unidade) { alert("Preencha a Pró-Reitoria / Unidade."); return; }
             if (!this.processo.campus_id) { alert("Selecione o Campus."); return; }
             if (!this.processo.sala) { alert("Preencha a Sala/Espaço."); return; }
-            API.salvarProcesso(this.processo).then(function(data) {
-                self.processoId = data.id; self.processo = data; self.aba = "itens";
+            var payload = Object.assign({}, this.processo);
+            if (this.processoId) payload.id = this.processoId;
+            API.salvarProcesso(payload).then(function(data) {
+                self.processoId = data.id;
+                self.processo = data;
+                self.aba = "itens";
+            }).catch(function(err) {
+                alert("Erro ao salvar processo: " + (err && err.message ? err.message : "tente novamente."));
             });
         },
 

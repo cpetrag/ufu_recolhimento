@@ -67,11 +67,22 @@ function carregarItensProcessoCompleto(processoId) {
     return db.from("patrimonios").select("*").eq("processo_id", processoId).order("created_at", { ascending: true }).then(function(r) { return r.data || []; });
 }
 function salvarProcesso(processo) {
-    return db.from("processos").upsert([{
-        sei: processo.sei, pro_reitoria_unidade: processo.pro_reitoria_unidade,
-        campus_id: processo.campus_id || null, bloco_id: processo.bloco_id || null, sala: processo.sala
-    }], { onConflict: "sei" }).select().single().then(function(r) {
-        if (r.error) throw r.error; return r.data;
+    var row = {
+        sei: processo.sei,
+        pro_reitoria_unidade: processo.pro_reitoria_unidade,
+        campus_id: processo.campus_id || null,
+        bloco_id: processo.bloco_id || null,
+        sala: processo.sala
+    };
+    if (processo.id) {
+        return db.from("processos").update(row).eq("id", processo.id).select().single().then(function(r) {
+            if (r.error) throw r.error;
+            return r.data;
+        });
+    }
+    return db.from("processos").upsert([row], { onConflict: "sei" }).select().single().then(function(r) {
+        if (r.error) throw r.error;
+        return r.data;
     });
 }
 function salvarItem(item, processoId) {

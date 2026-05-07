@@ -55,6 +55,9 @@
         <div x-show="aba === 'processo'" class="space-y-4">
             <div class="bg-white p-4 rounded-xl shadow border-t-4 border-emerald-500">
                 <h2 class="font-bold mb-4 text-emerald-700 text-[10px] uppercase tracking-widest text-center">Identificação do Processo</h2>
+                <div class="flex justify-end mb-2">
+                    <button type="button" class="text-[10px] font-bold text-slate-500 underline" x-on:click="limparFormularioProcesso('')">Novo processo (limpar tudo)</button>
+                </div>
                 <div class="space-y-4">
                     <div>
                         <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">Número SEI</label>
