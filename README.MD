@@ -196,13 +196,19 @@ Itens individuais registrados dentro de um processo. É onde ficam os bens patri
 | `foto` | text | Imagem em base64 (JPEG, max 1024px, qualidade 70%) |
 | `enviado_sharepoint` | boolean | Se já foi sincronizado com o SharePoint |
 | `situacao` | text | Situação patrimonial: "Ativo", "Baixado" ou "Não encontrado" (adicionado via migration) |
+| `avaliacao` | text | Classificação prévia: `REUSO`, `LAUDO_TECNICO` ou `DESCARTE`. `NULL` para itens legados ainda não avaliados (adicionado via migration 002). |
+| `avaliado_em` | timestamptz | Data/hora em que a avaliação foi registrada/alterada (adicionado via migration 002) |
 | `created_at` | timestamptz | Data/hora de criação (auto) |
 
 > **Atenção:** O campo `tamanho` possui um `CHECK constraint` no banco que só aceita os valores `'P'`, `'M'`, `'G'`, `'GG'` ou `NULL`. Nunca enviar string vazia `""`.
+>
+> O campo `avaliacao` possui `CHECK constraint` que só aceita `'REUSO'`, `'LAUDO_TECNICO'`, `'DESCARTE'` ou `NULL`.
 
 ---
 
-### Migration aplicada
+### Migrations aplicadas
+
+#### 001 — Campo `situacao`
 
 Para adicionar o campo `situacao`, foi necessário rodar o seguinte SQL no Supabase Dashboard → SQL Editor:
 
@@ -212,6 +218,33 @@ ADD COLUMN IF NOT EXISTS situacao TEXT DEFAULT 'Ativo';
 ```
 
 Registros existentes anteriores à migration ficam com `'Ativo'` por default.
+
+#### 002 — Campos `avaliacao` e `avaliado_em` (Classificação Prévia)
+
+Adiciona suporte ao Relatório de Classificação Prévia. SQL completo em [`migrations/002_add_avaliacao_to_patrimonios.sql`](migrations/002_add_avaliacao_to_patrimonios.sql):
+
+```sql
+ALTER TABLE patrimonios
+    ADD COLUMN IF NOT EXISTS avaliacao TEXT
+        CHECK (avaliacao IN ('REUSO', 'LAUDO_TECNICO', 'DESCARTE')),
+    ADD COLUMN IF NOT EXISTS avaliado_em TIMESTAMPTZ;
+```
+
+Itens cadastrados antes da migration ficam com `avaliacao = NULL` e devem ser regularizados pela aba **Classif. Prévia** antes da emissão do respectivo relatório. Cadastros novos passam a exigir avaliação obrigatória.
+
+---
+
+### Relatório de Classificação Prévia
+
+Aba dedicada (`Classif.`) que produz um PDF separado do documento padrão de recolhimento. Reaproveita a mesma diagramação (cabeçalho UFU, tabela Foto + Detalhes, 5 itens por página), trocando os campos exibidos para:
+
+- **Empresa** — derivada do código presente no CSV de patrimônios via `EMPRESAS_MAP` (15→HC, 45→UFU, 46→FAEPU, 47→FAU, 52→FUNDAP). Itens `BVM`, `Sem número` ou com código não mapeado caem no padrão `UFU`.
+- **Patrimônio**
+- **Descrição**
+- **Tamanho**
+- **Avaliação** — Reuso, Laudo Técnico ou Descarte.
+
+A avaliação é **persistida** em `patrimonios.avaliacao` e pode ser editada a qualquer momento. A geração do relatório é **bloqueada** enquanto houver itens sem avaliação no processo.
 
 ---
 
@@ -404,13 +437,15 @@ O `app.js` define a função `app()` que é o componente raiz do Alpine.js (decl
 | `buscaGlobalCarregando` | boolean | Busca em andamento |
 | `buscaGlobalFeita` | boolean | True após primeira busca (para exibir "sem resultados") |
 
-#### Edição de item inline
+#### Edição de item (modal)
 
 | Propriedade | Tipo | Descrição |
 |---|---|---|
 | `itemEditando` | string/null | UUID do item em edição. `null` = nenhum |
 | `itemEditForm` | object | Cópia dos dados do item sendo editado |
 | `itemEditNovaFoto` | boolean | True se uma nova foto foi selecionada durante edição |
+| `itemEditAutoStatus` | string | Status textual do auto-save da edição (`Alterações pendentes`, `Salvando`, `Salvo automaticamente`) |
+| `_itemEditAutoSaveTimer` | number/null | Timer interno (debounce) para disparar auto-save |
 
 ---
 
@@ -441,9 +476,19 @@ Valida o formulário antes de gravar:
 
 Após gravar, reseta o formulário `item` para os valores padrão e adiciona o item retornado pelo banco (com `id`) ao início do array `itens`.
 
-#### `salvarEdicaoItem(i)`
+#### `salvarEdicaoItem(i, opts)`
 
-Valida `descricao` e `tamanho`, faz update via `API.editarItem`. Inclui `enviado_sharepoint: false` nos campos para forçar reenvio ao SharePoint. Se `itemEditNovaFoto` for `true`, inclui a nova foto no update.
+Valida `descricao` e `tamanho`, faz update via `API.editarItem`. Inclui `enviado_sharepoint: false` nos campos para forçar reenvio ao SharePoint. Se `itemEditNovaFoto` for `true`, inclui a foto atual do formulário (nova foto colada/upload ou remoção de foto).
+
+`opts` permite controlar o comportamento:
+- `manterAberto`: não fecha o modal após salvar (usado na navegação por setas)
+- `silencioso`: evita alertas bloqueantes no auto-save
+
+Métodos relacionados ao fluxo rápido de edição:
+- `agendarAutoSaveEdicao()`: agenda gravação automática com debounce
+- `abrirEdicaoItemAnterior()` / `abrirEdicaoItemProximo()`: salva o item atual e navega entre registros
+- `iniciarInclusaoRapida()`: sai da edição e foca o campo de patrimônio
+- `removerFotoEdicao()`: remove a foto do item em edição e salva automaticamente
 
 #### `carregarListaProcessos()`
 
@@ -536,7 +581,7 @@ Dividida em dois blocos: formulário de novo item e lista de itens registrados.
 
 **Lista de itens (abaixo do formulário):**
 
-Renderizada via `x-for` sobre o array `itens`. Cada item tem dois estados controlados por `itemEditando`:
+Renderizada via `x-for` sobre o array `itens`. O card mostra os dados resumidos e o botão **Editar** abre um modal centralizado.
 
 **Estado normal:** mostra miniatura (56×56px), número, badges de status SharePoint, descrição, tamanho/viável/BVM e botões Editar / Reenviar / Excluir.
 
@@ -545,7 +590,27 @@ Badges de status SharePoint:
 - `⏳ Pendente` (âmbar): `enviado_sharepoint === false` e não reenviando
 - `⏫ Enviando...` (azul): `_reenviando === true` (estado temporário local)
 
-**Estado de edição:** expande inline (não abre modal) com formulário de descrição, tamanho, viável, BVM e campo de nova foto opcional. Salvar chama `salvarEdicaoItem(i)`.
+**Estado de edição (modal):**
+- Abre em overlay (`x-show="itemEditando !== null"`) com foco no formulário.
+- Possui navegação entre itens por botões e teclado:
+  - `←`/`↑`: item anterior
+  - `→`/`↓`: próximo item
+- Salva automaticamente ao alterar campos e também ao navegar entre itens.
+- Foto da edição aceita:
+  - upload por arquivo/câmera
+  - colar imagem via clipboard
+  - remoção da foto atual por botão **Remover foto**
+- Ações do rodapé:
+  - **Salvar agora**
+  - **Incluir item** (retorna ao formulário principal)
+  - **Fechar**
+
+**Atalhos na aba Itens:**
+- `P` / `M` / `G` / `X` define tamanho (`X = GG`)
+- `0` alterna `Viável`
+- `1` alterna `BVM`
+- `Delete` exclui o item em edição
+- `N` inicia inclusão rápida
 
 ---
 
@@ -784,6 +849,13 @@ Usa SheetJS (`window.XLSX`). Cria um workbook com uma sheet "Recolhimento". Defi
    ├── Marcar "Viável" se o bem tem condições de uso
    ├── Tirar foto com a câmera ou colar imagem
    └── "GRAVAR ITEM"
+
+   Edição rápida (quando necessário):
+   ├── Clicar em "Editar" para abrir modal
+   ├── Corrigir descrição/tamanho/viável/BVM/foto
+   ├── Usar setas para ir ao próximo/anterior (salva automático)
+   ├── Se foto estiver errada, usar "Remover foto"
+   └── "Incluir item" para voltar rapidamente ao cadastro
 
 4. Aba Documento → digitar o SEI → "GERAR DOCUMENTO"
    ├── Gera PDF para download e anexo no SEI

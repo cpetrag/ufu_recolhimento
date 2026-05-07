@@ -75,10 +75,18 @@ function salvarProcesso(processo) {
     });
 }
 function salvarItem(item, processoId) {
-    return db.from("patrimonios").insert([{
-        patrimonio: item.patrimonio, descricao: item.descricao, tamanho: item.tamanho,
-        viavel: item.viavel, bvm: item.bvm, foto: item.foto, processo_id: processoId
-    }]).select().single().then(function(r) {
+    var registro = {
+        patrimonio: item.patrimonio,
+        descricao: item.descricao,
+        tamanho: item.tamanho,
+        viavel: item.viavel,
+        bvm: item.bvm,
+        foto: item.foto,
+        processo_id: processoId,
+        avaliacao: item.avaliacao || null,
+        avaliado_em: item.avaliacao ? new Date().toISOString() : null
+    };
+    return db.from("patrimonios").insert([registro]).select().single().then(function(r) {
         if (r.error) throw r.error; return r.data;
     });
 }

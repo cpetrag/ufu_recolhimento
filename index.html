@@ -33,6 +33,9 @@
             <button x-on:click="aba = 'pdf'; if(processoId) buscaSei = processo.sei" x-bind:class="aba === 'pdf' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>📄</span><span>Documento</span>
             </button>
+            <button x-on:click="aba = 'classificacao'; if(processoId) buscaSeiClassif = processo.sei" x-bind:class="aba === 'classificacao' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
+                <span>🏷️</span><span>Classif.</span>
+            </button>
             <button x-on:click="aba = 'processos'; carregarListaProcessos()" x-bind:class="aba === 'processos' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>📋</span><span>Processos</span>
             </button>
@@ -106,7 +109,7 @@
                         <p class="text-[10px] text-red-600 font-bold mt-1 uppercase italic">⚠️ Patrimônio não localizado na base</p>
                     </template>
                 </div>
-                <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="grid grid-cols-2 gap-3 mb-3">
                     <select class="w-full p-2 border rounded-lg text-sm font-bold bg-white" x-model="item.tamanho">
                         <option value="">Tamanho</option>
                         <option>P</option><option>M</option><option>G</option><option>GG</option>
@@ -118,8 +121,25 @@
                         </label>
                     </div>
                 </div>
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase">Avaliação <span class="text-red-600">*</span></label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button"
+                                class="p-3 rounded-lg text-xs font-bold uppercase border-2 transition-all"
+                                x-bind:class="item.avaliacao === 'REUSO' ? 'bg-emerald-600 text-white border-emerald-700 shadow' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'"
+                                x-on:click="item.avaliacao = 'REUSO'">♻️ Reuso</button>
+                        <button type="button"
+                                class="p-3 rounded-lg text-xs font-bold uppercase border-2 transition-all"
+                                x-bind:class="item.avaliacao === 'LAUDO_TECNICO' ? 'bg-amber-600 text-white border-amber-700 shadow' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'"
+                                x-on:click="item.avaliacao = 'LAUDO_TECNICO'">📋 Laudo Téc.</button>
+                        <button type="button"
+                                class="p-3 rounded-lg text-xs font-bold uppercase border-2 transition-all"
+                                x-bind:class="item.avaliacao === 'DESCARTE' ? 'bg-red-600 text-white border-red-700 shadow' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'"
+                                x-on:click="item.avaliacao = 'DESCARTE'">🗑 Descarte</button>
+                    </div>
+                </div>
                 <p class="text-[10px] text-slate-500 mb-3">
-                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | N = incluir rápido
+                    Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | R/L/D = avaliação | N = incluir rápido
                 </p>
                 <div class="mb-4 p-3 border-2 border-dashed rounded-lg bg-slate-50 text-center">
                     <label class="block text-sm font-bold text-slate-600 mb-2 uppercase">📷 Foto do Item</label>
@@ -166,6 +186,16 @@
                                     </div>
                                     <p class="text-xs text-slate-500 truncate mt-0.5" x-text="i.descricao"></p>
                                     <p class="text-[10px] text-slate-400" x-text="'Tam: ' + (i.tamanho || '—') + ' | ' + (i.viavel ? 'Viável' : 'Inviável') + (i.bvm ? ' | BVM' : '')"></p>
+                                    <div class="text-[10px] mt-0.5 flex items-center gap-1">
+                                        <template x-if="i.avaliacao">
+                                            <span class="font-bold px-1.5 py-0.5 rounded"
+                                                  x-bind:class="{ 'bg-emerald-100 text-emerald-700': i.avaliacao === 'REUSO', 'bg-amber-100 text-amber-700': i.avaliacao === 'LAUDO_TECNICO', 'bg-red-100 text-red-700': i.avaliacao === 'DESCARTE' }"
+                                                  x-text="formatarAvaliacaoTexto(i.avaliacao)"></span>
+                                        </template>
+                                        <template x-if="!i.avaliacao">
+                                            <span class="bg-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded">⚠ Sem avaliação</span>
+                                        </template>
+                                    </div>
                                     <!-- Botões de ação -->
                                     <div class="flex gap-1.5 mt-1.5">
                                         <button class="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded" x-on:click="abrirEdicaoItem(i)">✏️ Editar</button>
@@ -212,8 +242,25 @@
                                 <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" x-model="itemEditForm.bvm" x-on:change="onCampoEdicaoAlterado(); if(itemEditForm.bvm) { $nextTick(function() { $refs.campoDescricaoEdicao.focus(); }); }"> BVM</label>
                             </div>
                         </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Avaliação <span class="text-red-600">*</span></label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button"
+                                        class="p-2 rounded-lg text-[11px] font-bold uppercase border-2 transition-all"
+                                        x-bind:class="itemEditForm.avaliacao === 'REUSO' ? 'bg-emerald-600 text-white border-emerald-700 shadow' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
+                                        x-on:click="itemEditForm.avaliacao = 'REUSO'; onCampoEdicaoAlterado()">♻️ Reuso</button>
+                                <button type="button"
+                                        class="p-2 rounded-lg text-[11px] font-bold uppercase border-2 transition-all"
+                                        x-bind:class="itemEditForm.avaliacao === 'LAUDO_TECNICO' ? 'bg-amber-600 text-white border-amber-700 shadow' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                                        x-on:click="itemEditForm.avaliacao = 'LAUDO_TECNICO'; onCampoEdicaoAlterado()">📋 Laudo</button>
+                                <button type="button"
+                                        class="p-2 rounded-lg text-[11px] font-bold uppercase border-2 transition-all"
+                                        x-bind:class="itemEditForm.avaliacao === 'DESCARTE' ? 'bg-red-600 text-white border-red-700 shadow' : 'bg-red-50 text-red-700 border-red-200'"
+                                        x-on:click="itemEditForm.avaliacao = 'DESCARTE'; onCampoEdicaoAlterado()">🗑 Descarte</button>
+                            </div>
+                        </div>
                         <p class="text-[10px] text-slate-500">
-                            Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | ←/↑ anterior | →/↓ próximo | Delete excluir | N incluir | Esc fechar
+                            Atalhos: P/M/G/X = tamanho (X = GG) | 0 = Viável | 1 = BVM | R/L/D = avaliação | ←/↑ anterior | →/↓ próximo | Delete excluir | N incluir | Esc fechar
                         </p>
                         <p class="text-[10px] font-bold text-emerald-700" x-text="itemEditAutoStatus" x-show="itemEditAutoStatus"></p>
                         <div>
@@ -252,6 +299,110 @@
                     <span x-text="exportando ? 'GERANDO...' : '📄 GERAR DOCUMENTO'"></span>
                 </button>
             </div>
+        </div>
+
+        <!-- ================================ ABA CLASSIFICAÇÃO PRÉVIA ================================ -->
+        <div x-show="aba === 'classificacao'" x-cloak class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow border-l-4 border-fuchsia-600">
+                <h2 class="font-bold mb-3 text-fuchsia-700 text-[10px] uppercase text-center">Classificação Prévia de Bens</h2>
+                <input class="w-full p-3 border rounded-lg font-mono text-sm bg-slate-50 mb-3"
+                       x-model="buscaSeiClassif"
+                       x-on:input="buscaSeiClassif = API.mascaraSEI(buscaSeiClassif)"
+                       placeholder="23117.000000/0000-00">
+                <button class="w-full bg-fuchsia-700 text-white p-3 rounded-xl font-black shadow"
+                        x-on:click="carregarProcessoClassificacao()"
+                        x-bind:disabled="classifCarregando">
+                    <span x-text="classifCarregando ? 'CARREGANDO...' : '🔎 CARREGAR PROCESSO'"></span>
+                </button>
+                <p x-show="classifErro" class="text-xs text-red-600 font-bold mt-2" x-text="classifErro"></p>
+            </div>
+
+            <template x-if="classifProcesso">
+                <div class="space-y-3">
+                    <div class="bg-white p-3 rounded-xl shadow text-xs">
+                        <p><span class="font-bold text-slate-500">SEI:</span> <span class="font-mono" x-text="classifProcesso.sei"></span></p>
+                        <p><span class="font-bold text-slate-500">Unidade:</span> <span x-text="classifProcesso.pro_reitoria_unidade || '—'"></span></p>
+                        <p><span class="font-bold text-slate-500">Sala:</span> <span x-text="classifProcesso.sala || '—'"></span></p>
+                    </div>
+
+                    <div class="bg-white p-3 rounded-xl shadow">
+                        <div class="flex flex-wrap items-center gap-2 mb-3">
+                            <span class="text-[10px] font-bold uppercase text-slate-500">Filtro:</span>
+                            <button class="text-[10px] font-bold px-2 py-1 rounded uppercase"
+                                    x-bind:class="classifFiltro === 'pendentes' ? 'bg-amber-600 text-white' : 'bg-amber-100 text-amber-700'"
+                                    x-on:click="classifFiltro = 'pendentes'">
+                                Pendentes (<span x-text="classifPendentesCount"></span>)
+                            </button>
+                            <button class="text-[10px] font-bold px-2 py-1 rounded uppercase"
+                                    x-bind:class="classifFiltro === 'avaliados' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'"
+                                    x-on:click="classifFiltro = 'avaliados'">
+                                Avaliados (<span x-text="classifAvaliadosCount"></span>)
+                            </button>
+                            <button class="text-[10px] font-bold px-2 py-1 rounded uppercase"
+                                    x-bind:class="classifFiltro === 'todos' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'"
+                                    x-on:click="classifFiltro = 'todos'">
+                                Todos (<span x-text="classifItens.length"></span>)
+                            </button>
+                        </div>
+
+                        <p class="text-[11px] mb-3 font-bold"
+                           x-bind:class="classifPendentesCount === 0 ? 'text-emerald-700' : 'text-amber-700'"
+                           x-text="classifPendentesCount === 0
+                                ? '✅ Todos os itens estão avaliados — relatório liberado.'
+                                : 'Faltam ' + classifPendentesCount + ' de ' + classifItens.length + ' itens para concluir avaliação.'"></p>
+
+                        <div class="space-y-2">
+                            <template x-for="i in classifItensFiltrados" x-bind:key="i.id">
+                                <div class="flex gap-2 items-start p-2 bg-slate-50 rounded-lg border">
+                                    <div class="flex-shrink-0">
+                                        <template x-if="i.foto">
+                                            <img x-bind:src="i.foto" class="w-12 h-12 object-cover rounded border">
+                                        </template>
+                                        <template x-if="!i.foto">
+                                            <div class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400 text-xs">📷</div>
+                                        </template>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="font-mono font-bold text-sm" x-text="i.patrimonio"></span>
+                                            <span class="text-[9px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded" x-text="'Empresa: ' + resolverEmpresa(i)"></span>
+                                        </div>
+                                        <p class="text-xs text-slate-500 truncate" x-text="i.descricao"></p>
+                                        <p class="text-[10px] text-slate-400" x-text="'Tam: ' + (i.tamanho || '—')"></p>
+                                        <div class="grid grid-cols-3 gap-1 mt-1.5">
+                                            <button type="button"
+                                                    class="text-[10px] font-bold px-1 py-1 rounded border"
+                                                    x-bind:class="i.avaliacao === 'REUSO' ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
+                                                    x-on:click="definirAvaliacaoClassif(i, 'REUSO')"
+                                                    x-bind:disabled="i._salvandoAval">♻️ Reuso</button>
+                                            <button type="button"
+                                                    class="text-[10px] font-bold px-1 py-1 rounded border"
+                                                    x-bind:class="i.avaliacao === 'LAUDO_TECNICO' ? 'bg-amber-600 text-white border-amber-700' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                                                    x-on:click="definirAvaliacaoClassif(i, 'LAUDO_TECNICO')"
+                                                    x-bind:disabled="i._salvandoAval">📋 Laudo</button>
+                                            <button type="button"
+                                                    class="text-[10px] font-bold px-1 py-1 rounded border"
+                                                    x-bind:class="i.avaliacao === 'DESCARTE' ? 'bg-red-600 text-white border-red-700' : 'bg-red-50 text-red-700 border-red-200'"
+                                                    x-on:click="definirAvaliacaoClassif(i, 'DESCARTE')"
+                                                    x-bind:disabled="i._salvandoAval">🗑 Descarte</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="classifItensFiltrados.length === 0">
+                                <p class="text-xs text-slate-500 italic text-center py-4">Nenhum item neste filtro.</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <button class="w-full p-4 rounded-xl font-black shadow-lg text-white"
+                            x-bind:class="classifPendentesCount === 0 && !classifGerando ? 'bg-fuchsia-700' : 'bg-slate-400'"
+                            x-on:click="gerarRelatorioClassificacao()"
+                            x-bind:disabled="classifPendentesCount > 0 || classifGerando || classifItens.length === 0">
+                        <span x-text="classifGerando ? 'GERANDO...' : '📄 GERAR RELATÓRIO DE CLASSIFICAÇÃO'"></span>
+                    </button>
+                </div>
+            </template>
         </div>
 
         <!-- ================================ ABA PROCESSOS ================================ -->

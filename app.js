@@ -1,5 +1,25 @@
 var BASE_CSV_URL = "https://custodioufu.netlify.app/base.csv";
 
+var EMPRESAS_MAP = {
+    "15": "HC",
+    "45": "UFU",
+    "46": "FAEPU",
+    "47": "FAU",
+    "52": "FUNDAP"
+};
+var EMPRESA_PADRAO = "UFU";
+
+var AVALIACOES_LABEL = {
+    REUSO: "Reuso",
+    LAUDO_TECNICO: "Laudo Técnico",
+    DESCARTE: "Descarte"
+};
+
+function formatarAvaliacao(valor) {
+    if (!valor) return "—";
+    return AVALIACOES_LABEL[valor] || valor;
+}
+
 function app() {
     return {
         // ── estado geral ──────────────────────────────
@@ -10,7 +30,7 @@ function app() {
         processoId: null, loading: false, exportando: false,
         buscaSei: "", patrimonioNaoEncontrado: false,
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
-        item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false },
+        item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false, avaliacao: "" },
 
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
@@ -24,9 +44,18 @@ function app() {
         // ── busca global ──────────────────────────────
         buscaGlobal: "", buscaGlobalResultados: [], buscaGlobalCarregando: false, buscaGlobalFeita: false,
 
+        // ── aba classificação prévia ──────────────────
+        buscaSeiClassif: "",
+        classifProcesso: null,
+        classifItens: [],
+        classifFiltro: "pendentes",
+        classifCarregando: false,
+        classifErro: null,
+        classifGerando: false,
+
         // ── edição de item ────────────────────────────
         itemEditando: null,
-        itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "" },
+        itemEditForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", avaliacao: "" },
         itemEditNovaFoto: false,
         itemEditAutoStatus: "",
         _itemEditAutoSaveTimer: null,
@@ -81,7 +110,8 @@ function app() {
                         return {
                             NroPatrimonio: self._valor(linha, map.NroPatrimonio),
                             CodioBarra:    self._valor(linha, map.CodioBarra),
-                            DescricaoBem:  self._valor(linha, map.DescricaoBem)
+                            DescricaoBem:  self._valor(linha, map.DescricaoBem),
+                            Empresa:       self._valor(linha, map.Empresa)
                         };
                     }).filter(function(l) { return l.NroPatrimonio !== undefined || l.CodioBarra !== undefined; });
                     self.csvCarregando = false; self.csvCarregado = true;
@@ -93,29 +123,73 @@ function app() {
         },
 
         _mapearColunas: function(campos) {
-            var nro  = ["NroPatrimonio","Nro Patrimônio","Patrimônio","Numero","Número","Nro"];
-            var cod  = ["CodioBarra","CodigoBarra","Código de Barras","Codigo Barras"];
-            var desc = ["DescricaoBem","Descrição do Bem","Descricao","Descrição"];
-            function achar(lista) {
+            var nro     = ["NroPatrimonio","Nro Patrimônio","Patrimônio","Numero","Número","Nro"];
+            var cod     = ["CodioBarra","CodigoBarra","Código de Barras","Codigo Barras"];
+            var desc    = ["DescricaoBem","Descrição do Bem","Descricao","Descrição"];
+            var empresa = ["Empresa","CodEmpresa","Codigo Empresa","Código Empresa","Cod Empresa"];
+
+            function acharExato(lista) {
                 for (var i = 0; i < campos.length; i++) {
                     var c = (campos[i]||"").replace(/\uFEFF/g,"").trim();
-                    for (var j = 0; j < lista.length; j++) if (c === lista[j]) return campos[i];
+                    for (var j = 0; j < lista.length; j++) {
+                        if (c.toLowerCase() === lista[j].toLowerCase()) return campos[i];
+                    }
                 }
-                for (var k = 0; k < campos.length; k++) {
-                    var key = (campos[k]||"").replace(/\uFEFF/g,"").trim();
-                    if (/patrim|numero|nro/i.test(key)) return campos[k];
-                    if (/codigo|barra/i.test(key))      return campos[k];
-                    if (/descri/i.test(key))             return campos[k];
-                }
-                return campos[0] || null;
+                return null;
             }
-            return { NroPatrimonio: achar(nro)||campos[0], CodioBarra: achar(cod)||campos[1], DescricaoBem: achar(desc)||campos[2] };
+            function acharPorRegex(regex) {
+                for (var i = 0; i < campos.length; i++) {
+                    var c = (campos[i]||"").replace(/\uFEFF/g,"").trim();
+                    if (regex.test(c)) return campos[i];
+                }
+                return null;
+            }
+
+            return {
+                NroPatrimonio: acharExato(nro)     || acharPorRegex(/patrim|numero|nro/i) || campos[0] || null,
+                CodioBarra:    acharExato(cod)     || acharPorRegex(/codigo|barra/i)      || campos[1] || null,
+                DescricaoBem:  acharExato(desc)    || acharPorRegex(/descri/i)             || campos[2] || null,
+                Empresa:       acharExato(empresa) || acharPorRegex(/empresa|orgao|órgão|unidade.*gestora/i) || null
+            };
         },
 
         _valor: function(linha, chave) {
             if (!chave) return undefined;
             var v = linha[chave];
             return v !== undefined && v !== null ? String(v).trim() : undefined;
+        },
+
+        formatarAvaliacaoTexto: function(valor) {
+            return formatarAvaliacao(valor);
+        },
+
+        resolverEmpresa: function(item) {
+            if (!item) return EMPRESA_PADRAO;
+            var semPatrimonio = !!item.bvm
+                || item.semPatrimonio === true
+                || item.patrimonio === "Sem número"
+                || item.patrimonio === "SEM PATRIMONIO";
+            if (semPatrimonio) return EMPRESA_PADRAO;
+
+            if (!this.baseCSV || this.baseCSV.length === 0) return EMPRESA_PADRAO;
+
+            var v = String(item.patrimonio || "").trim();
+            if (!v) return EMPRESA_PADRAO;
+            var vNum = parseInt(v, 10);
+
+            var achado = this.baseCSV.find(function(b) {
+                var nroPat = parseInt(String(b.NroPatrimonio || "").trim(), 10);
+                var codBar = parseInt(String(b.CodioBarra || "").trim(), 10);
+                if (!isNaN(nroPat) && nroPat === vNum) return true;
+                if (!isNaN(codBar) && codBar !== 0 && codBar === vNum) return true;
+                if (String(b.NroPatrimonio || "").trim() === v) return true;
+                if (String(b.CodioBarra || "").trim() === v) return true;
+                return false;
+            });
+
+            if (!achado || !achado.Empresa) return EMPRESA_PADRAO;
+            var cod = String(achado.Empresa).trim();
+            return EMPRESAS_MAP[cod] || EMPRESA_PADRAO;
         },
 
         // =============================================
@@ -309,6 +383,14 @@ function app() {
             return false;
         },
 
+        _aplicarAtalhoAvaliacao: function(key, alvo) {
+            var mapa = { r: "REUSO", l: "LAUDO_TECNICO", d: "DESCARTE" };
+            if (!mapa[key]) return false;
+            alvo.avaliacao = mapa[key];
+            this.mostrarAtalhoToast("Avaliação: " + AVALIACOES_LABEL[mapa[key]]);
+            return true;
+        },
+
         _indiceItemEditando: function() {
             if (this.itemEditando === null) return -1;
             return this.itens.findIndex(function(x) { return x.id === this.itemEditando; }.bind(this));
@@ -330,6 +412,7 @@ function app() {
             if (String(this.itemEditForm.tamanho || "") !== String(itemAtual.tamanho || "")) return true;
             if (!!this.itemEditForm.viavel !== !!itemAtual.viavel) return true;
             if (!!this.itemEditForm.bvm !== !!itemAtual.bvm) return true;
+            if (String(this.itemEditForm.avaliacao || "") !== String(itemAtual.avaliacao || "")) return true;
             if (this.itemEditNovaFoto) return true;
             return false;
         },
@@ -456,8 +539,11 @@ function app() {
             var alvo = this._getContextoAtalho();
             if (!alvo) return;
 
-            if (this._aplicarAtalhoTamanho(key, alvo) || this._aplicarAtalhoFlags(key, alvo)) {
+            if (this._aplicarAtalhoTamanho(key, alvo)
+                || this._aplicarAtalhoFlags(key, alvo)
+                || this._aplicarAtalhoAvaliacao(key, alvo)) {
                 e.preventDefault();
+                if (this.itemEditando !== null) this.agendarAutoSaveEdicao();
             }
         },
 
@@ -472,11 +558,12 @@ function app() {
             if (!this.item.semPatrimonio && !this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
             if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
             if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
+            if (!this.item.avaliacao) { alert("Selecione a Avaliação (Reuso, Laudo Técnico ou Descarte)."); return; }
             if (!this.item.foto) { alert("Capture a Foto."); return; }
             this.loading = true;
             API.salvarItem(this.item, this.processoId).then(function(salvo) {
                 self.itens.unshift(salvo);
-                self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false };
+                self.item = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false, avaliacao: "" };
                 self.patrimonioNaoEncontrado = false;
                 self.loading = false;
             }).catch(function() { self.loading = false; });
@@ -490,7 +577,15 @@ function app() {
             }
             this.itemEditando = i.id;
             this.itemEditNovaFoto = false;
-            this.itemEditForm = { patrimonio: i.patrimonio, descricao: i.descricao, tamanho: i.tamanho, viavel: i.viavel, bvm: i.bvm, foto: i.foto };
+            this.itemEditForm = {
+                patrimonio: i.patrimonio,
+                descricao: i.descricao,
+                tamanho: i.tamanho,
+                viavel: i.viavel,
+                bvm: i.bvm,
+                foto: i.foto,
+                avaliacao: i.avaliacao || ""
+            };
             this.itemEditAutoStatus = "";
         },
 
@@ -548,7 +643,17 @@ function app() {
                 if (!silencioso) alert("Selecione o Tamanho.");
                 return Promise.resolve(false);
             }
-            var campos = { descricao: this.itemEditForm.descricao, tamanho: this.itemEditForm.tamanho, viavel: this.itemEditForm.viavel, bvm: this.itemEditForm.bvm, enviado_sharepoint: false };
+            var campos = {
+                descricao: this.itemEditForm.descricao,
+                tamanho: this.itemEditForm.tamanho,
+                viavel: this.itemEditForm.viavel,
+                bvm: this.itemEditForm.bvm,
+                avaliacao: this.itemEditForm.avaliacao || null,
+                enviado_sharepoint: false
+            };
+            if (this.itemEditForm.avaliacao) {
+                campos.avaliado_em = new Date().toISOString();
+            }
             if (this.itemEditNovaFoto) campos.foto = this.itemEditForm.foto;
             this.loading = true;
             this.itemEditAutoStatus = "Salvando...";
@@ -697,14 +802,17 @@ function app() {
         // =============================================
         _exportarCSV: function(procs) {
             if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            var self = this;
             var todas = [];
             Promise.all(procs.map(function(p) {
                 return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
                     itens.forEach(function(i) {
                         todas.push({ SEI: p.sei, Unidade: p.pro_reitoria_unidade||"", Sala: p.sala||"",
                             Data: p.created_at ? p.created_at.substring(0,10) : "",
+                            Empresa: self.resolverEmpresa(i),
                             Patrimonio: i.patrimonio, Descricao: i.descricao||"", Tamanho: i.tamanho||"",
                             Viavel: i.viavel?"Sim":"Não", BVM: i.bvm?"Sim":"Não",
+                            Avaliacao: formatarAvaliacao(i.avaliacao),
                             Situacao: i.situacao||"Ativo", Enviado_SharePoint: i.enviado_sharepoint?"Sim":"Não" });
                     });
                 });
@@ -720,23 +828,26 @@ function app() {
 
         _exportarExcel: function(procs) {
             if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            var self = this;
             var todas = [];
             Promise.all(procs.map(function(p) {
                 return API.carregarItensProcessoCompleto(p.id).then(function(itens) {
                     itens.forEach(function(i) {
                         todas.push([p.sei, p.pro_reitoria_unidade||"", p.sala||"",
                             p.created_at ? p.created_at.substring(0,10) : "",
+                            self.resolverEmpresa(i),
                             i.patrimonio, i.descricao||"", i.tamanho||"",
                             i.viavel?"Sim":"Não", i.bvm?"Sim":"Não",
+                            formatarAvaliacao(i.avaliacao),
                             i.situacao||"Ativo", i.enviado_sharepoint?"Sim":"Não"]);
                     });
                 });
             })).then(function() {
                 var XLS = window.XLSX;
                 var wb = XLS.utils.book_new();
-                var cab = [["SEI","Unidade","Sala","Data","Patrimônio","Descrição","Tamanho","Viável","BVM","Situação","Enviado SharePoint"]];
+                var cab = [["SEI","Unidade","Sala","Data","Empresa","Patrimônio","Descrição","Tamanho","Viável","BVM","Avaliação","Situação","Enviado SharePoint"]];
                 var ws = XLS.utils.aoa_to_sheet(cab.concat(todas));
-                ws["!cols"] = [22,30,30,12,16,40,10,8,8,16,18].map(function(w){return{wch:w};});
+                ws["!cols"] = [22,30,30,12,12,16,40,10,8,8,16,16,18].map(function(w){return{wch:w};});
                 XLS.utils.book_append_sheet(wb, ws, "Recolhimento");
                 XLS.writeFile(wb, "Recolhimento_" + new Date().toISOString().substring(0,10) + ".xlsx");
             });
@@ -886,6 +997,151 @@ function app() {
                 });
             }
             doc.save("Recolhimento_" + processo.sei + ".pdf");
+        },
+
+        // =============================================
+        // ABA CLASSIFICAÇÃO PRÉVIA
+        // =============================================
+        get classifPendentesCount() {
+            return this.classifItens.filter(function(i) { return !i.avaliacao; }).length;
+        },
+
+        get classifAvaliadosCount() {
+            return this.classifItens.filter(function(i) { return !!i.avaliacao; }).length;
+        },
+
+        get classifItensFiltrados() {
+            if (this.classifFiltro === "pendentes") {
+                return this.classifItens.filter(function(i) { return !i.avaliacao; });
+            }
+            if (this.classifFiltro === "avaliados") {
+                return this.classifItens.filter(function(i) { return !!i.avaliacao; });
+            }
+            return this.classifItens;
+        },
+
+        carregarProcessoClassificacao: function() {
+            var self = this;
+            this.classifErro = null;
+            this.classifProcesso = null;
+            this.classifItens = [];
+            if (!this.buscaSeiClassif || this.buscaSeiClassif.length < 20) {
+                this.classifErro = "Informe o número SEI completo.";
+                return;
+            }
+            this.classifCarregando = true;
+            API.buscarProcessoPorSEI(this.buscaSeiClassif).then(function(proc) {
+                if (!proc) {
+                    self.classifErro = "Processo não encontrado.";
+                    self.classifCarregando = false;
+                    return;
+                }
+                self.classifProcesso = proc;
+                return API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
+                    self.classifItens = itens;
+                    self.classifCarregando = false;
+                    self.classifFiltro = self.classifPendentesCount > 0 ? "pendentes" : "todos";
+                });
+            }).catch(function(err) {
+                self.classifErro = "Erro ao carregar processo: " + (err && err.message ? err.message : "desconhecido");
+                self.classifCarregando = false;
+            });
+        },
+
+        definirAvaliacaoClassif: function(item, valor) {
+            if (!item || !valor) return;
+            if (item._salvandoAval) return;
+            var self = this;
+            item._salvandoAval = true;
+            this.classifItens = this.classifItens.slice();
+            var campos = { avaliacao: valor, avaliado_em: new Date().toISOString() };
+            API.editarItem(item.id, campos).then(function(atualizado) {
+                var idx = self.classifItens.findIndex(function(x) { return x.id === item.id; });
+                if (idx !== -1) {
+                    var preservado = Object.assign({}, atualizado, { _salvandoAval: false });
+                    self.classifItens.splice(idx, 1, preservado);
+                }
+            }).catch(function() {
+                item._salvandoAval = false;
+                self.classifItens = self.classifItens.slice();
+                alert("Falha ao salvar avaliação. Tente novamente.");
+            });
+        },
+
+        gerarRelatorioClassificacao: function() {
+            if (this.classifPendentesCount > 0) {
+                alert("Avalie todos os itens antes de gerar o relatório (faltam " + this.classifPendentesCount + ").");
+                return;
+            }
+            if (this.classifItens.length === 0) {
+                alert("Nenhum item para gerar relatório.");
+                return;
+            }
+            this.classifGerando = true;
+            try {
+                this.criarPDFClassificacaoPrevia();
+            } finally {
+                this.classifGerando = false;
+            }
+        },
+
+        criarPDFClassificacaoPrevia: function() {
+            var self = this;
+            var jsPDF = window.jspdf.jsPDF;
+            var doc = new jsPDF("p", "mm", "a4");
+            var pw = doc.internal.pageSize.getWidth();
+            var itensParaPDF = this.classifItens.slice();
+            var processo = this.classifProcesso;
+            var IPP = 5;
+
+            function cab() {
+                doc.setFontSize(14); doc.setFont("helvetica", "bold");
+                doc.text("Universidade Federal de Uberlândia", pw / 2, 15, { align: "center" });
+                doc.setFontSize(11); doc.setFont("helvetica", "bold");
+                doc.text("Classificação Prévia de Bens Coletados", pw / 2, 22, { align: "center" });
+                doc.setFontSize(10); doc.setFont("helvetica", "normal");
+                doc.text(processo.pro_reitoria_unidade || "", pw / 2, 28, { align: "center" });
+                doc.line(15, 33, pw - 15, 33);
+                doc.text("PROCESSO SEI: " + processo.sei, 15, 40);
+                doc.text("SALA / ESPAÇO: " + (processo.sala || ""), 15, 45);
+            }
+
+            for (var p = 0; p < itensParaPDF.length; p += IPP) {
+                if (p > 0) doc.addPage();
+                cab();
+                var chunk = itensParaPDF.slice(p, p + IPP);
+                var fotos = [];
+                var body = chunk.map(function(i) {
+                    fotos.push(i.foto || "");
+                    return [
+                        { content: "", styles: { minCellHeight: 40 } },
+                        "Empresa: " + self.resolverEmpresa(i) +
+                        "\nPatrimônio: " + i.patrimonio +
+                        "\nDescrição: " + i.descricao +
+                        "\nTamanho: " + (i.tamanho || "") +
+                        "\nAvaliação: " + formatarAvaliacao(i.avaliacao)
+                    ];
+                });
+                doc.autoTable({
+                    startY: 50, head: [["Foto", "Detalhes"]], body: body,
+                    columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: "auto" } },
+                    styles: { fontSize: 10.5, valign: "middle", cellPadding: 4 },
+                    didDrawCell: (function(fc) {
+                        return function(d) {
+                            if (d.column.index === 0 && d.cell.section === "body") {
+                                var img = fc[d.row.index];
+                                if (img) {
+                                    try {
+                                        var cw = d.cell.width - 4, ch = d.cell.height - 4, s = Math.min(cw, ch);
+                                        doc.addImage(img, "JPEG", d.cell.x + 2 + (cw - s) / 2, d.cell.y + 2 + (ch - s) / 2, s, s);
+                                    } catch (e) { /* ignora foto inválida */ }
+                                }
+                            }
+                        };
+                    })(fotos)
+                });
+            }
+            doc.save("Classificacao_Previa_" + processo.sei + ".pdf");
         },
 
         // =============================================
