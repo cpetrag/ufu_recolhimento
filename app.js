@@ -65,6 +65,8 @@ function app() {
         _itemEditAutoSaveTimer: null,
         atalhoToast: "",
         _atalhoToastTimer: null,
+        colarFotoDebugVisivel: true,
+        colarFotoDebugLinhas: [],
 
         // ── backup ────────────────────────────────────
         backupStats: null,
@@ -361,41 +363,70 @@ function app() {
             }).catch(function() { alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V."); });
         },
 
+        _tiposClipboardItems: function(items) {
+            if (!items || !items.length) return "(vazio)";
+            var partes = [];
+            for (var i = 0; i < items.length; i++) {
+                if (items[i].types && items[i].types.join) {
+                    partes.push(items[i].types.join(", "));
+                } else if (items[i].type) {
+                    partes.push(items[i].type);
+                }
+            }
+            return partes.join(" | ") || "(sem types)";
+        },
+
         _blobDaClipboardRead: function(clipItems) {
+            var self = this;
+            self.debugColarFoto("clipboard.read", self._tiposClipboardItems(clipItems));
             for (var i = 0; i < clipItems.length; i++) {
                 var types = clipItems[i].types || [];
                 for (var j = 0; j < types.length; j++) {
                     if (types[j].indexOf("image") !== -1) {
+                        self.debugColarFoto("imagem encontrada", types[j]);
                         return clipItems[i].getType(types[j]);
                     }
                 }
             }
+            self.debugColarFoto("sem imagem", "tipos lidos acima");
             return Promise.resolve(null);
         },
 
         _focarZonaColarFotoLista: function(item) {
             var el = document.getElementById("paste-foto-lista-" + item.id);
-            if (el) el.focus();
+            if (el) {
+                el.focus();
+                this.debugColarFoto("foco", "zona paste-foto-lista-" + item.id);
+            } else {
+                this.debugColarFoto("foco FALHOU", "id paste-foto-lista-" + item.id + " não existe no DOM");
+            }
         },
 
         _aplicarFotoESalvarItemLista: function(item, blob) {
             var self = this;
+            self.debugColarFoto("processar", "blob " + (blob && blob.size != null ? blob.size + " bytes" : typeof blob));
             return API.processarFoto(blob).then(function(foto) {
+                self.debugColarFoto("jpeg ok", (foto ? foto.length : 0) + " chars base64");
                 return API.editarItem(item.id, { foto: foto, enviado_sharepoint: false });
             }).then(function(atualizado) {
                 var idx = self.itens.findIndex(function(x) { return x.id === item.id; });
                 if (idx !== -1) self.itens.splice(idx, 1, atualizado);
-                self.mostrarAtalhoToast("Foto salva");
+                self.debugColarFoto("salvo", "patrimônio " + item.patrimonio);
                 return true;
-            }).catch(function() {
-                alert("Erro ao salvar a foto. Tente novamente.");
+            }).catch(function(err) {
+                var msg = err && err.message ? err.message : String(err || "erro desconhecido");
+                self.debugColarFoto("ERRO salvar", msg);
+                alert("Erro ao salvar a foto: " + msg);
                 return false;
             });
         },
 
         _salvarFotoItemListaDeBlob: function(item, blob) {
             var self = this;
-            if (item._colandoFoto) return Promise.resolve(false);
+            if (item._colandoFoto) {
+                self.debugColarFoto("ignorado", "já colando foto neste item");
+                return Promise.resolve(false);
+            }
             item._colandoFoto = true;
             self.itens = self.itens.slice();
             return self._aplicarFotoESalvarItemLista(item, blob).then(function(result) {
@@ -411,41 +442,59 @@ function app() {
 
         colarFotoItemListaPaste: function(e, item) {
             var self = this;
+            self.debugColarFoto("paste Ctrl+V", "pat=" + (item && item.patrimonio));
             var clipItems = e.clipboardData && e.clipboardData.items;
             if (!clipItems) {
+                self.debugColarFoto("paste FALHOU", "clipboardData.items ausente");
                 alert("Navegador não suporta colar imagens.");
                 return;
             }
+            self.debugColarFoto("paste items", self._tiposClipboardItems(clipItems));
             var ok = this._extrairImagemClipboard(clipItems, function(blob) {
                 self._salvarFotoItemListaDeBlob(item, blob);
             });
             if (!ok) {
+                self.debugColarFoto("paste sem imagem", "copie Print Screen ou Ctrl+C em foto");
                 alert("Nenhuma imagem encontrada. Copie uma captura de tela ou foto e pressione Ctrl+V.");
             }
         },
 
         colarFotoItemLista: function(item) {
             var self = this;
-            if (item._colandoFoto) return;
-            self.mostrarAtalhoToast("Colando foto...");
-            self._focarZonaColarFotoLista(item);
+            try {
+                if (!item || !item.id) {
+                    self.debugColarFoto("ERRO click", "item inválido (sem id)");
+                    alert("Item inválido — recarregue a página.");
+                    return;
+                }
+                if (item._colandoFoto) {
+                    self.debugColarFoto("ignorado", "aguarde o salvamento anterior");
+                    return;
+                }
+                self.debugColarFoto("click botão", "pat=" + item.patrimonio + " id=" + item.id);
+                self.debugColarFoto("ambiente", "https=" + (window.isSecureContext ? "sim" : "NÃO") + " | clipboard.read=" + !!(navigator.clipboard && navigator.clipboard.read));
+                self._focarZonaColarFotoLista(item);
 
-            if (!navigator.clipboard || !navigator.clipboard.read) {
-                self.mostrarAtalhoToast("Copie a imagem e pressione Ctrl+V aqui");
-                return;
-            }
+                if (!navigator.clipboard || !navigator.clipboard.read) {
+                    self.debugColarFoto("sem clipboard.read", "use Ctrl+V na miniatura (anel roxo)");
+                    return;
+                }
 
-            navigator.clipboard.read().then(function(clipItems) {
-                return self._blobDaClipboardRead(clipItems).then(function(blob) {
-                    if (!blob) {
-                        self.mostrarAtalhoToast("Sem imagem — use Ctrl+V na miniatura");
-                        return;
-                    }
-                    return self._salvarFotoItemListaDeBlob(item, blob);
+                navigator.clipboard.read().then(function(clipItems) {
+                    return self._blobDaClipboardRead(clipItems).then(function(blob) {
+                        if (!blob) return;
+                        return self._salvarFotoItemListaDeBlob(item, blob);
+                    });
+                }).catch(function(err) {
+                    var msg = err && err.message ? err.message : String(err || "permissão negada");
+                    self.debugColarFoto("clipboard.read ERRO", msg);
+                    self.debugColarFoto("dica", "copie a imagem e pressione Ctrl+V na miniatura");
                 });
-            }).catch(function() {
-                self.mostrarAtalhoToast("Use Ctrl+V na miniatura para colar");
-            });
+            } catch (err) {
+                var msg = err && err.message ? err.message : String(err);
+                self.debugColarFoto("ERRO sync", msg);
+                alert("Erro ao colar: " + msg);
+            }
         },
 
         _focoDescricaoInclusao: function() {
@@ -621,6 +670,22 @@ function app() {
                 self.atalhoToast = "";
                 self._atalhoToastTimer = null;
             }, 1300);
+        },
+
+        debugColarFoto: function(etapa, detalhe) {
+            var ts = new Date().toLocaleTimeString("pt-BR");
+            var linha = ts + " · " + etapa + (detalhe ? ": " + detalhe : "");
+            console.log("[ColarFoto]", etapa, detalhe || "");
+            this.colarFotoDebugLinhas.unshift(linha);
+            if (this.colarFotoDebugLinhas.length > 20) this.colarFotoDebugLinhas.pop();
+            this.colarFotoDebugVisivel = true;
+            this.atalhoToast = etapa + (detalhe ? " — " + detalhe : "");
+            if (this._atalhoToastTimer) clearTimeout(this._atalhoToastTimer);
+            var self = this;
+            this._atalhoToastTimer = setTimeout(function() {
+                self.atalhoToast = "";
+                self._atalhoToastTimer = null;
+            }, 3500);
         },
 
         handleAtalhosItens: function(e) {
