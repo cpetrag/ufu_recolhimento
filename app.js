@@ -361,6 +361,23 @@ function app() {
             }).catch(function() { alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V."); });
         },
 
+        _blobDaClipboardRead: function(clipItems) {
+            for (var i = 0; i < clipItems.length; i++) {
+                var types = clipItems[i].types || [];
+                for (var j = 0; j < types.length; j++) {
+                    if (types[j].indexOf("image") !== -1) {
+                        return clipItems[i].getType(types[j]);
+                    }
+                }
+            }
+            return Promise.resolve(null);
+        },
+
+        _focarZonaColarFotoLista: function(item) {
+            var el = document.getElementById("paste-foto-lista-" + item.id);
+            if (el) el.focus();
+        },
+
         _aplicarFotoESalvarItemLista: function(item, blob) {
             var self = this;
             return API.processarFoto(blob).then(function(foto) {
@@ -376,39 +393,58 @@ function app() {
             });
         },
 
+        _salvarFotoItemListaDeBlob: function(item, blob) {
+            var self = this;
+            if (item._colandoFoto) return Promise.resolve(false);
+            item._colandoFoto = true;
+            self.itens = self.itens.slice();
+            return self._aplicarFotoESalvarItemLista(item, blob).then(function(result) {
+                item._colandoFoto = false;
+                self.itens = self.itens.slice();
+                return result;
+            }, function() {
+                item._colandoFoto = false;
+                self.itens = self.itens.slice();
+                return false;
+            });
+        },
+
+        colarFotoItemListaPaste: function(e, item) {
+            var self = this;
+            var clipItems = e.clipboardData && e.clipboardData.items;
+            if (!clipItems) {
+                alert("Navegador não suporta colar imagens.");
+                return;
+            }
+            var ok = this._extrairImagemClipboard(clipItems, function(blob) {
+                self._salvarFotoItemListaDeBlob(item, blob);
+            });
+            if (!ok) {
+                alert("Nenhuma imagem encontrada. Copie uma captura de tela ou foto e pressione Ctrl+V.");
+            }
+        },
+
         colarFotoItemLista: function(item) {
             var self = this;
             if (item._colandoFoto) return;
+            self.mostrarAtalhoToast("Colando foto...");
+            self._focarZonaColarFotoLista(item);
+
             if (!navigator.clipboard || !navigator.clipboard.read) {
-                alert("Use HTTPS e permita acesso à área de transferência, ou abra Editar e use Ctrl+V.");
+                self.mostrarAtalhoToast("Copie a imagem e pressione Ctrl+V aqui");
                 return;
             }
-            item._colandoFoto = true;
-            self.itens = self.itens.slice();
-            navigator.clipboard.read().then(function(items) {
-                for (var i = 0; i < items.length; i++) {
-                    var types = items[i].types;
-                    for (var j = 0; j < types.length; j++) {
-                        if (types[j].indexOf("image") !== -1) {
-                            return items[i].getType(types[j]).then(function(blob) {
-                                return self._aplicarFotoESalvarItemLista(item, blob);
-                            }).then(function() {
-                                item._colandoFoto = false;
-                                self.itens = self.itens.slice();
-                            }, function() {
-                                item._colandoFoto = false;
-                                self.itens = self.itens.slice();
-                            });
-                        }
+
+            navigator.clipboard.read().then(function(clipItems) {
+                return self._blobDaClipboardRead(clipItems).then(function(blob) {
+                    if (!blob) {
+                        self.mostrarAtalhoToast("Sem imagem — use Ctrl+V na miniatura");
+                        return;
                     }
-                }
-                alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
-                item._colandoFoto = false;
-                self.itens = self.itens.slice();
+                    return self._salvarFotoItemListaDeBlob(item, blob);
+                });
             }).catch(function() {
-                alert("Sem permissão para acessar a área de transferência. Copie a imagem e tente novamente.");
-                item._colandoFoto = false;
-                self.itens = self.itens.slice();
+                self.mostrarAtalhoToast("Use Ctrl+V na miniatura para colar");
             });
         },
 

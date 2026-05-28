@@ -169,19 +169,22 @@
                         <div>
                             <!-- Linha normal -->
                             <div x-show="itemEditando !== i.id" class="flex gap-2 items-start p-2 bg-slate-50 rounded-lg border">
-                                <!-- Miniatura + colar rápido -->
-                                <div class="flex-shrink-0 flex flex-col items-center gap-1">
+                                <!-- Miniatura + colar rápido (Ctrl+V ou botão) -->
+                                <div class="flex-shrink-0 flex flex-col items-center gap-1 rounded-lg outline-none focus:ring-2 focus:ring-violet-400"
+                                     tabindex="0"
+                                     x-bind:id="'paste-foto-lista-' + i.id"
+                                     x-on:paste.prevent="colarFotoItemListaPaste($event, i)">
                                     <template x-if="i.foto">
-                                        <img x-bind:src="i.foto" class="w-14 h-14 object-cover rounded-lg border shadow-sm">
+                                        <img x-bind:src="i.foto" class="w-14 h-14 object-cover rounded-lg border shadow-sm pointer-events-none">
                                     </template>
                                     <template x-if="!i.foto">
-                                        <div class="w-14 h-14 bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs">📷</div>
+                                        <div class="w-14 h-14 bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs pointer-events-none">📷</div>
                                     </template>
                                     <button type="button"
                                             class="w-14 bg-violet-600 text-white text-[8px] font-bold py-1 rounded leading-tight disabled:opacity-50 active:scale-95"
-                                            x-on:click="colarFotoItemLista(i)"
+                                            x-on:click.stop="colarFotoItemLista(i)"
                                             x-bind:disabled="i._colandoFoto"
-                                            title="Cola a imagem da área de transferência e salva na hora">
+                                            title="Cola e salva na hora. Se não colar, pressione Ctrl+V com foco aqui.">
                                         <span x-text="i._colandoFoto ? '…' : 'Colar foto'"></span>
                                     </button>
                                 </div>
