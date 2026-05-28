@@ -169,14 +169,21 @@
                         <div>
                             <!-- Linha normal -->
                             <div x-show="itemEditando !== i.id" class="flex gap-2 items-start p-2 bg-slate-50 rounded-lg border">
-                                <!-- Miniatura -->
-                                <div class="flex-shrink-0">
+                                <!-- Miniatura + colar rápido -->
+                                <div class="flex-shrink-0 flex flex-col items-center gap-1">
                                     <template x-if="i.foto">
                                         <img x-bind:src="i.foto" class="w-14 h-14 object-cover rounded-lg border shadow-sm">
                                     </template>
                                     <template x-if="!i.foto">
                                         <div class="w-14 h-14 bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs">📷</div>
                                     </template>
+                                    <button type="button"
+                                            class="w-14 bg-violet-600 text-white text-[8px] font-bold py-1 rounded leading-tight disabled:opacity-50 active:scale-95"
+                                            x-on:click="colarFotoItemLista(i)"
+                                            x-bind:disabled="i._colandoFoto"
+                                            title="Cola a imagem da área de transferência e salva na hora">
+                                        <span x-text="i._colandoFoto ? '…' : 'Colar foto'"></span>
+                                    </button>
                                 </div>
                                 <!-- Dados -->
                                 <div class="flex-1 min-w-0">

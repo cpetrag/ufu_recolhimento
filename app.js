@@ -361,6 +361,57 @@ function app() {
             }).catch(function() { alert("Sem permissão para acessar clipboard. Clique nesta área e use Ctrl+V."); });
         },
 
+        _aplicarFotoESalvarItemLista: function(item, blob) {
+            var self = this;
+            return API.processarFoto(blob).then(function(foto) {
+                return API.editarItem(item.id, { foto: foto, enviado_sharepoint: false });
+            }).then(function(atualizado) {
+                var idx = self.itens.findIndex(function(x) { return x.id === item.id; });
+                if (idx !== -1) self.itens.splice(idx, 1, atualizado);
+                self.mostrarAtalhoToast("Foto salva");
+                return true;
+            }).catch(function() {
+                alert("Erro ao salvar a foto. Tente novamente.");
+                return false;
+            });
+        },
+
+        colarFotoItemLista: function(item) {
+            var self = this;
+            if (item._colandoFoto) return;
+            if (!navigator.clipboard || !navigator.clipboard.read) {
+                alert("Use HTTPS e permita acesso à área de transferência, ou abra Editar e use Ctrl+V.");
+                return;
+            }
+            item._colandoFoto = true;
+            self.itens = self.itens.slice();
+            navigator.clipboard.read().then(function(items) {
+                for (var i = 0; i < items.length; i++) {
+                    var types = items[i].types;
+                    for (var j = 0; j < types.length; j++) {
+                        if (types[j].indexOf("image") !== -1) {
+                            return items[i].getType(types[j]).then(function(blob) {
+                                return self._aplicarFotoESalvarItemLista(item, blob);
+                            }).then(function() {
+                                item._colandoFoto = false;
+                                self.itens = self.itens.slice();
+                            }, function() {
+                                item._colandoFoto = false;
+                                self.itens = self.itens.slice();
+                            });
+                        }
+                    }
+                }
+                alert("Nenhuma imagem na área de transferência. Copie uma imagem e tente novamente.");
+                item._colandoFoto = false;
+                self.itens = self.itens.slice();
+            }).catch(function() {
+                alert("Sem permissão para acessar a área de transferência. Copie a imagem e tente novamente.");
+                item._colandoFoto = false;
+                self.itens = self.itens.slice();
+            });
+        },
+
         _focoDescricaoInclusao: function() {
             if (this.$refs && this.$refs.campoDescricao) {
                 this.$nextTick(function() { this.$refs.campoDescricao.focus(); }.bind(this));
