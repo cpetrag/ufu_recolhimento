@@ -35,6 +35,7 @@ function app() {
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
         processosFiltro: "", processosFiltroAno: "", processosFiltroSemFoto: false, processosAnos: [],
+        itensFiltroSemFoto: false,
 
         // ── seleção múltipla ──────────────────────────
         selecionados: [],       // ids selecionados via checkbox
@@ -93,6 +94,17 @@ function app() {
             this.carregarBaseCSV();
             this._keyHandler = function(e) { self.handleAtalhosItens(e); };
             window.addEventListener("keydown", this._keyHandler);
+            this._carregarProcessoDaUrl();
+        },
+
+        itemSemFoto: function(item) {
+            return API.itemSemFoto(item);
+        },
+
+        get itensVisiveis() {
+            if (!this.itensFiltroSemFoto) return this.itens;
+            var self = this;
+            return this.itens.filter(function(i) { return self.itemSemFoto(i); });
         },
 
         // =============================================
@@ -918,12 +930,42 @@ function app() {
             });
         },
 
-        abrirProcessoNaAba: function(p) {
-            this.processo = p; this.processoId = p.id;
+        _carregarProcesso: function(p, opts) {
+            opts = opts || {};
+            this.processo = p;
+            this.processoId = p.id;
+            this.itensFiltroSemFoto = !!opts.filtroSemFoto;
             this.carregarBlocos();
             var self = this;
             API.carregarItensProcesso(p.id).then(function(itens) { self.itens = itens; });
-            this.itemEditando = null; this.aba = "itens";
+            this.itemEditando = null;
+            this.aba = opts.aba || "itens";
+        },
+
+        _carregarProcessoDaUrl: function() {
+            var params = new URLSearchParams(window.location.search);
+            var id = (params.get("processo") || "").trim();
+            if (!id) return;
+            var aba = params.get("aba") || "itens";
+            var filtroSemFoto = params.get("semFoto") === "1";
+            var self = this;
+            API.carregarProcessoPorId(id).then(function(p) {
+                if (!p) return;
+                self._carregarProcesso(p, { aba: aba, filtroSemFoto: filtroSemFoto });
+            }).catch(function() { /* processo inválido na URL — ignora */ });
+        },
+
+        abrirProcessoNaAba: function(p, novaAba) {
+            if (novaAba) {
+                var url = new URL(window.location.href);
+                url.searchParams.set("processo", p.id);
+                url.searchParams.set("aba", "itens");
+                if (this.processosFiltroSemFoto) url.searchParams.set("semFoto", "1");
+                else url.searchParams.delete("semFoto");
+                window.open(url.pathname + url.search, "_blank");
+                return;
+            }
+            this._carregarProcesso(p, { filtroSemFoto: this.processosFiltroSemFoto });
         },
 
         excluirProcessoLista: function(p) {

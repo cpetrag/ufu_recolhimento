@@ -60,6 +60,17 @@ function buscarProcessoPorSEI(sei) {
     if (sei.length < 20) return Promise.resolve(null);
     return db.from("processos").select("*").eq("sei", sei).maybeSingle().then(function(r) { return r.data; });
 }
+function carregarProcessoPorId(processoId) {
+    if (!processoId) return Promise.resolve(null);
+    return db.from("processos").select("*").eq("id", processoId).maybeSingle().then(function(r) {
+        if (r.error) throw r.error;
+        return r.data;
+    });
+}
+function itemSemFoto(item) {
+    var f = item && item.foto;
+    return !f || String(f).trim() === "";
+}
 function carregarItensProcesso(processoId) {
     return db.from("patrimonios").select("*").eq("processo_id", processoId).order("created_at", { ascending: false }).then(function(r) { return r.data || []; });
 }
@@ -332,7 +343,8 @@ window.API = {
     db: db,
     mascaraSEI: mascaraSEI, processarFoto: processarFoto,
     carregarCampus: carregarCampus, carregarUnidades: carregarUnidades, carregarBlocos: carregarBlocos,
-    buscarProcessoPorSEI: buscarProcessoPorSEI,
+    buscarProcessoPorSEI: buscarProcessoPorSEI, carregarProcessoPorId: carregarProcessoPorId,
+    itemSemFoto: itemSemFoto,
     carregarItensProcesso: carregarItensProcesso, carregarItensProcessoCompleto: carregarItensProcessoCompleto,
     salvarProcesso: salvarProcesso, salvarItem: salvarItem,
     editarItem: editarItem, excluirItem: excluirItem, excluirProcesso: excluirProcesso,
