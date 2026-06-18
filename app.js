@@ -34,7 +34,7 @@ function app() {
 
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
-        processosFiltro: "", processosFiltroAno: "", processosAnos: [],
+        processosFiltro: "", processosFiltroAno: "", processosFiltroSemFoto: false, processosAnos: [],
 
         // ── seleção múltipla ──────────────────────────
         selecionados: [],       // ids selecionados via checkbox
@@ -900,8 +900,9 @@ function app() {
         },
 
         get processosFiltrados() {
-            var f   = (this.processosFiltro    || "").toLowerCase().trim();
-            var ano = (this.processosFiltroAno || "").trim();
+            var f      = (this.processosFiltro    || "").toLowerCase().trim();
+            var ano    = (this.processosFiltroAno || "").trim();
+            var semFoto = this.processosFiltroSemFoto;
             return this.processosList.filter(function(p) {
                 var passaTexto = !f || (
                     (p.sei || "").toLowerCase().includes(f) ||
@@ -912,7 +913,8 @@ function app() {
                     var m = (p.sei || "").match(/\/(\d{4})-/);
                     return m && m[1] === ano;
                 })();
-                return passaTexto && passaAno;
+                var passaSemFoto = !semFoto || (p.itens_sem_foto > 0);
+                return passaTexto && passaAno && passaSemFoto;
             });
         },
 

@@ -513,14 +513,18 @@
                 <h2 class="font-bold text-violet-700 text-[10px] uppercase tracking-widest text-center">Processos Cadastrados</h2>
 
                 <!-- Filtros -->
-                <div class="flex gap-2">
-                    <input class="flex-1 p-2 border rounded-lg text-sm bg-slate-50" placeholder="🔍 SEI, unidade, sala..." x-model="processosFiltro">
+                <div class="flex flex-wrap gap-2 items-center">
+                    <input class="flex-1 min-w-[140px] p-2 border rounded-lg text-sm bg-slate-50" placeholder="🔍 SEI, unidade, sala..." x-model="processosFiltro">
                     <select class="p-2 border rounded-lg text-sm bg-white" x-model="processosFiltroAno">
                         <option value="">Ano</option>
                         <template x-for="ano in processosAnos" x-bind:key="ano">
                             <option x-bind:value="ano" x-text="ano"></option>
                         </template>
                     </select>
+                    <label class="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap cursor-pointer select-none">
+                        <input type="checkbox" class="accent-violet-600 w-4 h-4" x-model="processosFiltroSemFoto">
+                        📷 Sem foto
+                    </label>
                 </div>
                 <p class="text-[10px] text-slate-400" x-text="processosFiltrados.length + ' processo(s) | ' + selecionados.length + ' selecionado(s)'"></p>
 
@@ -598,8 +602,9 @@
                                 </div>
                                 <p class="text-xs text-slate-500 truncate" x-text="p.pro_reitoria_unidade"></p>
                                 <p class="text-xs text-slate-400 truncate" x-text="'Sala: ' + (p.sala || '—')"></p>
-                                <div class="flex gap-4 mt-1 text-[10px] text-slate-500">
+                                <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] text-slate-500">
                                     <span>📦 <strong x-text="p.total_itens"></strong> itens</span>
+                                    <span x-show="p.itens_sem_foto > 0" class="text-amber-600">📷 <strong x-text="p.itens_sem_foto"></strong> sem foto</span>
                                     <span>☁️ <strong x-text="p.enviados_sharepoint"></strong> enviados</span>
                                     <span>📅 <strong x-text="p.created_at ? p.created_at.substring(0,10) : '—'"></strong></span>
                                 </div>

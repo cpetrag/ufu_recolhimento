@@ -125,29 +125,38 @@ function listarProcessos() {
         if (processos.length === 0) return [];
         var ids = processos.map(function(p) { return p.id; });
 
-        // Pagina de 1000 em 1000 para nao truncar com muitos itens
-        function buscarPagina(from, acumulado) {
-            return db.from("patrimonios")
-                .select("processo_id, enviado_sharepoint")
-                .in("processo_id", ids)
-                .range(from, from + 999)
-                .then(function(r) {
-                    var pagina = r.data || [];
-                    var total = acumulado.concat(pagina);
-                    if (pagina.length === 1000) {
-                        return buscarPagina(from + 1000, total);
-                    }
-                    return total;
-                });
+        function buscarPagina(select, filtroExtra, from, acumulado) {
+            var q = db.from("patrimonios").select(select).in("processo_id", ids).range(from, from + 999);
+            if (filtroExtra) q = filtroExtra(q);
+            return q.then(function(r) {
+                if (r.error) throw r.error;
+                var pagina = r.data || [];
+                var total = acumulado.concat(pagina);
+                if (pagina.length === 1000) {
+                    return buscarPagina(select, filtroExtra, from + 1000, total);
+                }
+                return total;
+            });
         }
 
-        return buscarPagina(0, []).then(function(itens) {
+        return Promise.all([
+            buscarPagina("processo_id, enviado_sharepoint", null, 0, []),
+            buscarPagina("processo_id", function(q) { return q.or("foto.is.null,foto.eq."); }, 0, [])
+        ]).then(function(resultados) {
+            var itens = resultados[0];
+            var itensSemFoto = resultados[1];
+            var semFotoPorProcesso = {};
+            itensSemFoto.forEach(function(i) {
+                semFotoPorProcesso[i.processo_id] = (semFotoPorProcesso[i.processo_id] || 0) + 1;
+            });
             return processos.map(function(p) {
                 var seus = itens.filter(function(i) { return i.processo_id === p.id; });
                 var enviados = seus.filter(function(i) { return i.enviado_sharepoint; }).length;
+                var qtdSemFoto = semFotoPorProcesso[p.id] || 0;
                 return Object.assign({}, p, {
                     total_itens: seus.length,
                     enviados_sharepoint: enviados,
+                    itens_sem_foto: qtdSemFoto,
                     status_envio: seus.length === 0 ? "vazio"
                                : enviados === seus.length ? "completo"
                                : enviados > 0 ? "parcial" : "pendente"
