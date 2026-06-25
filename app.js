@@ -34,7 +34,8 @@ function app() {
 
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
-        processosFiltro: "", processosFiltroAno: "", processosFiltroSemFoto: false, processosAnos: [],
+        processosFiltro: "", processosFiltroAno: "", processosFiltroSemFoto: false,
+        processosFiltroItensMin: "", processosFiltroItensMax: "", processosAnos: [],
         itensFiltroSemFoto: false,
 
         // ── seleção múltipla ──────────────────────────
@@ -915,6 +916,10 @@ function app() {
             var f      = (this.processosFiltro    || "").toLowerCase().trim();
             var ano    = (this.processosFiltroAno || "").trim();
             var semFoto = this.processosFiltroSemFoto;
+            var itensMin = (this.processosFiltroItensMin || "").trim();
+            var itensMax = (this.processosFiltroItensMax || "").trim();
+            var minNum = itensMin !== "" ? parseInt(itensMin, 10) : null;
+            var maxNum = itensMax !== "" ? parseInt(itensMax, 10) : null;
             return this.processosList.filter(function(p) {
                 var passaTexto = !f || (
                     (p.sei || "").toLowerCase().includes(f) ||
@@ -926,7 +931,11 @@ function app() {
                     return m && m[1] === ano;
                 })();
                 var passaSemFoto = !semFoto || (p.itens_sem_foto > 0);
-                return passaTexto && passaAno && passaSemFoto;
+                var qtdItens = p.total_itens || 0;
+                var passaItens = true;
+                if (minNum !== null && !isNaN(minNum) && qtdItens < minNum) passaItens = false;
+                if (maxNum !== null && !isNaN(maxNum) && qtdItens > maxNum) passaItens = false;
+                return passaTexto && passaAno && passaSemFoto && passaItens;
             });
         },
 

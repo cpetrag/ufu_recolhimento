@@ -525,6 +525,8 @@
                             <option x-bind:value="ano" x-text="ano"></option>
                         </template>
                     </select>
+                    <input type="number" min="0" class="w-24 p-2 border rounded-lg text-sm bg-slate-50" placeholder="Itens mín." title="Mínimo de itens no processo" x-model="processosFiltroItensMin">
+                    <input type="number" min="0" class="w-24 p-2 border rounded-lg text-sm bg-slate-50" placeholder="Itens máx." title="Máximo de itens no processo" x-model="processosFiltroItensMax">
                     <label class="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap cursor-pointer select-none" title="Processos com pelo menos 1 item sem foto (foto vazia ou ausente no banco)">
                         <input type="checkbox" class="accent-violet-600 w-4 h-4" x-model="processosFiltroSemFoto">
                         📷 Com itens sem foto
