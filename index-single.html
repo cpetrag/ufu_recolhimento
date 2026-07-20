@@ -193,10 +193,13 @@ function app() {
             function fetchText(url) { return fetch(url).then(function(res) { if (!res.ok) throw new Error("CSV não encontrado: " + res.status); return res.text(); }); }
             fetchText(BASE_CSV_URL).catch(function() { return fetchText("https://api.allorigins.win/raw?url=" + encodeURIComponent(BASE_CSV_URL)); })
                 .then(function(texto) {
-                    var r = Papa.parse(texto, { header: true, skipEmptyLines: true });
-                    if (r.errors.length > 0) throw new Error("Erro ao ler CSV");
-                    var raw = r.data, campos = r.meta.fields || (raw[0] ? Object.keys(raw[0]) : []), map = self._mapearColunas(campos);
-                    self.baseCSV = raw.map(function(linha) { return { NroPatrimonio: self._valor(linha, map.NroPatrimonio), CodioBarra: self._valor(linha, map.CodioBarra), DescricaoBem: self._valor(linha, map.DescricaoBem) }; }).filter(function(l) { return l.NroPatrimonio !== undefined || l.CodioBarra !== undefined; });
+                    var r = Papa.parse(texto, { header: true, skipEmptyLines: true, delimiter: ";" });
+                    var fatals = (r.errors || []).filter(function(e) { return e.type !== "FieldMismatch"; });
+                    var raw = r.data || [];
+                    if ((fatals.length > 0 && raw.length === 0) || raw.length === 0) throw new Error("Erro ao ler CSV");
+                    var campos = r.meta.fields || (raw[0] ? Object.keys(raw[0]) : []), map = self._mapearColunas(campos);
+                    self.baseCSV = raw.map(function(linha) { return { NroPatrimonio: self._valor(linha, map.NroPatrimonio), CodioBarra: self._valor(linha, map.CodioBarra), DescricaoBem: self._valor(linha, map.DescricaoBem) }; }).filter(function(l) { return (l.NroPatrimonio && l.NroPatrimonio !== "") || (l.CodioBarra && l.CodioBarra !== ""); });
+                    if (self.baseCSV.length === 0) throw new Error("Erro ao ler CSV");
                     self.csvCarregando = false; self.csvCarregado = true;
                 }).catch(function(err) { self.csvCarregando = false; self.csvErro = err && err.message ? err.message : "Erro ao carregar base"; });
         },
