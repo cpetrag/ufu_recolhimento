@@ -759,9 +759,7 @@ function app() {
                 var existe = this.itens.some(function(i) { return String(i.patrimonio) === String(self.item.patrimonio); });
                 if (existe) { alert("Este patrimônio já foi cadastrado neste processo."); return; }
             }
-            if (this.item.semPatrimonio && !this.item.descricao.trim()) { alert("Informe a descrição do item."); return; }
-            if (!this.item.semPatrimonio && !this.item.descricao && !this.item.bvm) { alert("Patrimônio não encontrado. Marque BVM para descrição manual."); return; }
-            if (this.item.bvm && !this.item.descricao.trim()) { alert("Informe a descrição (BVM)."); return; }
+            if (!this.item.descricao || !this.item.descricao.trim()) { alert("Informe a descrição do bem."); return; }
             if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
             if (!this.item.avaliacao) { alert("Selecione a Avaliação (Reuso, Laudo Técnico ou Descarte)."); return; }
             if (!this.item.foto) { alert("Capture a Foto."); return; }
