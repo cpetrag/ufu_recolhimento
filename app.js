@@ -120,9 +120,16 @@ function app() {
                     return res.text();
                 })
                 .then(function(texto) {
-                    var r = Papa.parse(texto, { header: true, skipEmptyLines: true });
-                    if (r.errors.length > 0) throw new Error("Erro ao ler CSV");
-                    var raw = r.data;
+                    // Delimitador ";" (padrão UFU). Linhas incompletas (ex.: última linha
+                    // truncada no deploy) geram FieldMismatch — não invalidam a base.
+                    var r = Papa.parse(texto, { header: true, skipEmptyLines: true, delimiter: ";" });
+                    var fatals = (r.errors || []).filter(function(e) {
+                        return e.type !== "FieldMismatch";
+                    });
+                    var raw = r.data || [];
+                    if ((fatals.length > 0 && raw.length === 0) || raw.length === 0) {
+                        throw new Error("Erro ao ler CSV");
+                    }
                     var campos = r.meta.fields || (raw[0] ? Object.keys(raw[0]) : []);
                     var map = self._mapearColunas(campos);
                     self.baseCSV = raw.map(function(linha) {
@@ -132,7 +139,11 @@ function app() {
                             DescricaoBem:  self._valor(linha, map.DescricaoBem),
                             Empresa:       self._valor(linha, map.Empresa)
                         };
-                    }).filter(function(l) { return l.NroPatrimonio !== undefined || l.CodioBarra !== undefined; });
+                    }).filter(function(l) {
+                        return (l.NroPatrimonio !== undefined && l.NroPatrimonio !== "")
+                            || (l.CodioBarra !== undefined && l.CodioBarra !== "");
+                    });
+                    if (self.baseCSV.length === 0) throw new Error("Erro ao ler CSV");
                     self.csvCarregando = false; self.csvCarregado = true;
                 })
                 .catch(function(err) {
