@@ -12,7 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="config.public.js"></script>
     <script src="api.js"></script>
-    <script src="app.js?v=colar-debug-1"></script>
+    <script src="app.js?v=desc-manual-1"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -125,9 +125,13 @@
                 </div>
                 <div class="mb-3">
                     <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Descrição do Bem</label>
-                    <textarea x-ref="campoDescricao" class="w-full p-2 border rounded-lg text-sm bg-slate-50" rows="2" x-model="item.descricao" x-bind:readonly="!item.bvm && !item.semPatrimonio" placeholder="Descrição Automática"></textarea>
+                    <textarea x-ref="campoDescricao" class="w-full p-2 border rounded-lg text-sm"
+                              x-bind:class="(item.bvm || item.semPatrimonio || patrimonioNaoEncontrado) ? 'bg-white' : 'bg-slate-50'"
+                              rows="2" x-model="item.descricao"
+                              x-bind:readonly="!item.bvm && !item.semPatrimonio && !patrimonioNaoEncontrado"
+                              x-bind:placeholder="(item.bvm || item.semPatrimonio || patrimonioNaoEncontrado) ? 'Digite a descrição manualmente' : 'Descrição Automática'"></textarea>
                     <template x-if="patrimonioNaoEncontrado">
-                        <p class="text-[10px] text-red-600 font-bold mt-1 uppercase italic">⚠️ Patrimônio não localizado na base</p>
+                        <p class="text-[10px] text-red-600 font-bold mt-1 uppercase italic">⚠️ Patrimônio não localizado na base — digite a descrição manualmente</p>
                     </template>
                 </div>
                 <div class="grid grid-cols-2 gap-3 mb-3">
