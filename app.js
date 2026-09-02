@@ -1276,6 +1276,11 @@ function app() {
 
         oficioExtrair: function() {
             var self = this;
+            var seiInformado = String(this.oficioProcesso.sei || "").trim();
+            if (!seiInformado || seiInformado.length < 20) {
+                alert("Informe o Número SEI do processo (obrigatório). O ofício não traz o SEI — só o número do ofício.");
+                return;
+            }
             var texto = String(this.oficioTexto || "").trim();
             if (texto.length < 40) { alert("Cole o texto completo do ofício."); return; }
             this.oficioExtraindo = true;
@@ -1286,7 +1291,7 @@ function app() {
                 var unidade = OficioMatch.casarPorNome(data.unidade_texto, self.unidades_db);
                 var campus = OficioMatch.casarPorNome(data.campus_texto, self.campus);
                 self.oficioProcesso = {
-                    sei: API.mascaraSEI(String(data.sei || "").replace(/\D/g, "")) || String(data.sei || ""),
+                    sei: seiInformado,
                     pro_reitoria_unidade: unidade ? unidade.nome : (data.unidade_texto || ""),
                     campus_id: campus ? campus.id : "",
                     bloco_id: "",

@@ -23,9 +23,13 @@ function corsHeaders() {
 var SYSTEM_PROMPT = [
     "Você extrai dados de ofícios UFU de recolhimento/baixa de bens.",
     "Responda SOMENTE JSON válido (sem markdown) no formato:",
-    '{"sei":"23117.000000/0000-00","unidade_texto":"","campus_texto":"","bloco_texto":"","sala_texto":"","itens":[{"patrimonio":"","descricao":"","tamanho_sugerido":"P|M|G|GG|null","confianca":0.0}],"avisos":[]}',
-    "Regras: SEI no padrão 5.6/4-2 dígitos; patrimônios numéricos; tamanho_sugerido por porte físico do bem;",
-    "sala_texto = trecho de local do ofício; se algo incerto, use avisos[] e deixe campo vazio."
+    '{"unidade_texto":"","campus_texto":"","bloco_texto":"","sala_texto":"","itens":[{"patrimonio":"","descricao":"","tamanho_sugerido":"P|M|G|GG|null","confianca":0.0}],"avisos":[]}',
+    "Regras importantes:",
+    "1) NÃO extraia nem invente Número SEI. O usuário informa o SEI manualmente. Ignore 'Ofício nº X/AAAA/...' — isso NÃO é SEI.",
+    "2) unidade_texto = nome completo da unidade remetente (ex.: Instituto de Química), não genéricos como 'Instituto'.",
+    "3) campus_texto/bloco_texto/sala_texto a partir do 'Local de Recolhimento' quando houver.",
+    "4) patrimônios numéricos (remova zeros à esquerda opcionalmente na descrição, mas mantenha o número citado); tamanho_sugerido por porte físico (P/M/G/GG).",
+    "5) se algo incerto, use avisos[] e deixe o campo vazio."
 ].join(" ");
 
 exports.handler = async function(event) {
@@ -82,6 +86,8 @@ exports.handler = async function(event) {
         }
         var content = aiBody.choices && aiBody.choices[0] && aiBody.choices[0].message && aiBody.choices[0].message.content;
         var data = JSON.parse(content || "{}");
+        // SEI é informado pelo usuário — nunca confiar em valor inventado pelo modelo.
+        delete data.sei;
         if (!Array.isArray(data.itens)) data.itens = [];
         if (!Array.isArray(data.avisos)) data.avisos = [];
         return json(200, { ok: true, data: data }, corsHeaders());

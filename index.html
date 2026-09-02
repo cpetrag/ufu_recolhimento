@@ -13,7 +13,7 @@
     <script src="config.public.js"></script>
     <script src="api.js"></script>
     <script src="oficio-match.js"></script>
-    <script src="app.js?v=oficio-1"></script>
+    <script src="app.js?v=oficio-2"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -132,10 +132,20 @@
                 </div>
             </div>
 
-            <!-- Passo 1: colar o texto -->
+            <!-- Passo 1: SEI + colar o texto -->
             <div x-show="oficioPasso === 1" class="bg-white p-4 rounded-xl shadow border-t-4 border-cyan-600">
                 <h2 class="font-bold text-cyan-700 text-[10px] uppercase tracking-widest text-center">Colar texto do ofício</h2>
-                <p class="text-xs text-slate-500 text-center mt-2 mb-4">Cole o conteúdo completo para identificar o processo e os bens automaticamente.</p>
+                <p class="text-xs text-slate-500 text-center mt-2 mb-4">Informe o SEI do processo e cole o ofício. A IA extrai unidade, local e patrimônios — o SEI você digita.</p>
+
+                <div class="mb-4">
+                    <label for="oficio-sei" class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Número SEI <span class="text-red-600">*</span></label>
+                    <input id="oficio-sei"
+                           class="w-full p-3 border rounded-lg text-lg font-mono bg-yellow-50 focus:ring-2 focus:ring-cyan-400 outline-none"
+                           placeholder="23117.000000/0000-00"
+                           x-model="oficioProcesso.sei"
+                           x-on:input="oficioProcesso.sei = API.mascaraSEI(oficioProcesso.sei)">
+                    <p class="text-[10px] text-slate-500 mt-1">Obrigatório. O texto do ofício em geral não contém o SEI (não confundir com “Ofício nº …”).</p>
+                </div>
 
                 <label for="oficio-texto" class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Conteúdo do ofício</label>
                 <textarea id="oficio-texto"
@@ -178,11 +188,12 @@
 
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Número SEI</label>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Número SEI <span class="text-red-600">*</span></label>
                         <input class="w-full p-3 border rounded-lg text-lg font-mono bg-blue-50 focus:ring-2 focus:ring-blue-400 outline-none"
                                placeholder="23117.000000/0000-00"
                                x-model="oficioProcesso.sei"
                                x-on:input="oficioProcesso.sei = API.mascaraSEI(oficioProcesso.sei)">
+                        <p class="text-[10px] text-slate-500 mt-1">Informado por você no passo anterior (pode ajustar se precisar).</p>
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Pró-Reitoria / Unidade</label>
