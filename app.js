@@ -32,6 +32,20 @@ function app() {
         processo: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
         item: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", semPatrimonio: false, avaliacao: "" },
 
+        // ── aba Ofício ────────────────────────────────
+        oficioPasso: 1,
+        oficioTexto: "",
+        oficioExtraindo: false,
+        oficioErro: null,
+        oficioAvisos: [],
+        oficioProcesso: { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" },
+        oficioBlocos: [],
+        oficioFila: [],
+        oficioFilaIndex: 0,
+        oficioItemForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", avaliacao: "", semPatrimonio: false, naBase: false },
+        oficioConfirmados: 0,
+        oficioProcessoExistente: false,
+
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
         processosFiltro: "", processosFiltroAno: "", processosFiltroSemFoto: false,
@@ -1240,6 +1254,222 @@ function app() {
                 });
             }
             doc.save("Recolhimento_" + processo.sei + ".pdf");
+        },
+
+        // =============================================
+        // ABA OFÍCIO
+        // =============================================
+        oficioReset: function() {
+            this.oficioPasso = 1;
+            this.oficioTexto = "";
+            this.oficioExtraindo = false;
+            this.oficioErro = null;
+            this.oficioAvisos = [];
+            this.oficioProcesso = { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" };
+            this.oficioBlocos = [];
+            this.oficioFila = [];
+            this.oficioFilaIndex = 0;
+            this.oficioItemForm = { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", avaliacao: "", semPatrimonio: false, naBase: false };
+            this.oficioConfirmados = 0;
+            this.oficioProcessoExistente = false;
+        },
+
+        oficioExtrair: function() {
+            var self = this;
+            var texto = String(this.oficioTexto || "").trim();
+            if (texto.length < 40) { alert("Cole o texto completo do ofício."); return; }
+            this.oficioExtraindo = true;
+            this.oficioErro = null;
+            API.extrairOficio(texto).then(function(data) {
+                self.oficioExtraindo = false;
+                self.oficioAvisos = data.avisos || [];
+                var unidade = OficioMatch.casarPorNome(data.unidade_texto, self.unidades_db);
+                var campus = OficioMatch.casarPorNome(data.campus_texto, self.campus);
+                self.oficioProcesso = {
+                    sei: API.mascaraSEI(String(data.sei || "").replace(/\D/g, "")) || String(data.sei || ""),
+                    pro_reitoria_unidade: unidade ? unidade.nome : (data.unidade_texto || ""),
+                    campus_id: campus ? campus.id : "",
+                    bloco_id: "",
+                    sala: data.sala_texto || ""
+                };
+                var carregarBlocos = campus
+                    ? API.carregarBlocos(campus.id)
+                    : Promise.resolve([]);
+                return carregarBlocos.then(function(blocos) {
+                    self.oficioBlocos = blocos;
+                    var bloco = OficioMatch.casarBloco(data.bloco_texto, self.oficioProcesso.campus_id, blocos);
+                    if (bloco) self.oficioProcesso.bloco_id = bloco.id;
+                    var fila = (data.itens || []).map(function(it) {
+                        return OficioMatch.enriquecerItem(it, self.baseCSV);
+                    });
+                    if (fila.length === 0 && data.sala_texto) {
+                        // Sem patrimônio: cria um item genérico a partir do texto do ofício.
+                        fila.push(OficioMatch.enriquecerItem({ patrimonio: "", descricao: texto.slice(0, 280), tamanho_sugerido: "" }, self.baseCSV));
+                        fila[0].semPatrimonio = true;
+                        fila[0].patrimonio = "Sem número";
+                    }
+                    self.oficioFila = fila;
+                    self.oficioPasso = 2;
+                    return API.buscarProcessoPorSEI(self.oficioProcesso.sei).then(function(existente) {
+                        self.oficioProcessoExistente = !!existente;
+                        if (existente) {
+                            self.oficioProcesso = Object.assign({}, self.oficioProcesso, {
+                                sei: existente.sei,
+                                pro_reitoria_unidade: existente.pro_reitoria_unidade || self.oficioProcesso.pro_reitoria_unidade,
+                                campus_id: existente.campus_id || self.oficioProcesso.campus_id,
+                                bloco_id: existente.bloco_id || self.oficioProcesso.bloco_id,
+                                sala: existente.sala || self.oficioProcesso.sala,
+                                id: existente.id
+                            });
+                            if (existente.campus_id) {
+                                return API.carregarBlocos(existente.campus_id).then(function(b) { self.oficioBlocos = b; });
+                            }
+                        }
+                    });
+                });
+            }).catch(function(err) {
+                self.oficioExtraindo = false;
+                self.oficioErro = err && err.message ? err.message : "Falha ao extrair ofício";
+            });
+        },
+
+        oficioCarregarBlocos: function() {
+            var self = this;
+            this.oficioProcesso.bloco_id = "";
+            API.carregarBlocos(this.oficioProcesso.campus_id).then(function(b) { self.oficioBlocos = b; });
+        },
+
+        oficioSalvarProcesso: function() {
+            var self = this;
+            var p = this.oficioProcesso;
+            if (!p.sei || String(p.sei).length < 20) { alert("SEI inválido."); return; }
+            if (!p.pro_reitoria_unidade) { alert("Informe a Pró-Reitoria / Unidade."); return; }
+            if (!p.campus_id) { alert("Selecione o Campus."); return; }
+            if (!p.sala) { alert("Informe a Sala/Espaço."); return; }
+            var payload = {
+                sei: p.sei,
+                pro_reitoria_unidade: p.pro_reitoria_unidade,
+                campus_id: p.campus_id,
+                bloco_id: p.bloco_id || null,
+                sala: p.sala
+            };
+            if (p.id) payload.id = p.id;
+            API.salvarProcesso(payload).then(function(data) {
+                self.processoId = data.id;
+                self.processo = data;
+                // Filtra patrimônios que já pertencem ao processo salvo.
+                return API.carregarItensProcesso(data.id).then(function(itens) {
+                    self.itens = itens;
+                    var existentes = {};
+                    itens.forEach(function(i) { existentes[String(i.patrimonio)] = true; });
+                    self.oficioFila = self.oficioFila.filter(function(f) {
+                        if (f.semPatrimonio || f.patrimonio === "Sem número") return true;
+                        return !existentes[String(f.patrimonio)];
+                    });
+                    self.oficioConfirmados = 0;
+                    if (self.oficioFila.length === 0) {
+                        self.oficioPasso = 4;
+                        return;
+                    }
+                    self.oficioFilaIndex = 0;
+                    self.oficioCarregarItemAtual();
+                    self.oficioPasso = 3;
+                });
+            }).catch(function(err) {
+                alert("Erro ao salvar processo: " + (err && err.message ? err.message : "tente novamente"));
+            });
+        },
+
+        oficioCarregarItemAtual: function() {
+            var cur = this.oficioFila[this.oficioFilaIndex];
+            if (!cur) return;
+            this.oficioItemForm = {
+                patrimonio: cur.patrimonio || "",
+                descricao: cur.descricao || "",
+                tamanho: cur.tamanho || "",
+                viavel: !!cur.viavel,
+                bvm: !!cur.bvm,
+                foto: cur.foto || "",
+                avaliacao: cur.avaliacao || "",
+                semPatrimonio: !!cur.semPatrimonio || cur.patrimonio === "Sem número",
+                naBase: !!cur.naBase
+            };
+        },
+
+        oficioCapturarFoto: function(e) {
+            var self = this;
+            var file = e.target.files && e.target.files[0];
+            if (file) API.processarFoto(file).then(function(foto) { self.oficioItemForm.foto = foto; });
+        },
+
+        oficioColarFoto: function(e) {
+            var self = this;
+            var items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            this._extrairImagemClipboard(items, function(blob) {
+                API.processarFoto(blob).then(function(foto) { self.oficioItemForm.foto = foto; });
+            });
+        },
+
+        oficioConfirmarItem: function() {
+            var self = this;
+            var f = this.oficioItemForm;
+            if (!f.patrimonio) { alert("Informe o patrimônio."); return; }
+            if (!f.descricao || !String(f.descricao).trim()) { alert("Informe a descrição."); return; }
+            if (f.patrimonio !== "Sem número") {
+                var existe = this.itens.some(function(i) { return String(i.patrimonio) === String(f.patrimonio); });
+                if (existe) { alert("Este patrimônio já está neste processo."); return; }
+            }
+            var payload = {
+                patrimonio: f.semPatrimonio ? "Sem número" : f.patrimonio,
+                descricao: String(f.descricao).trim(),
+                tamanho: f.tamanho || null,
+                viavel: !!f.viavel,
+                bvm: !!f.bvm,
+                foto: f.foto || "",
+                avaliacao: f.avaliacao || null,
+                semPatrimonio: !!f.semPatrimonio
+            };
+            this.loading = true;
+            API.salvarItem(payload, this.processoId).then(function(salvo) {
+                self.itens.unshift(salvo);
+                self.oficioConfirmados += 1;
+                self.loading = false;
+                self.oficioAvancarFila(true);
+            }).catch(function(err) {
+                self.loading = false;
+                alert("Erro ao salvar item: " + (err && err.message ? err.message : ""));
+            });
+        },
+
+        oficioPularItem: function() {
+            // Mantém o item na fila, movendo-o para o fim.
+            if (!this.oficioFila.length) return;
+            var cur = this.oficioFila.splice(this.oficioFilaIndex, 1)[0];
+            this.oficioFila.push(cur);
+            if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
+            this.oficioCarregarItemAtual();
+        },
+
+        oficioRemoverDaFila: function() {
+            if (!this.oficioFila.length) return;
+            this.oficioFila.splice(this.oficioFilaIndex, 1);
+            if (this.oficioFila.length === 0) {
+                this.oficioPasso = 4;
+                return;
+            }
+            if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
+            this.oficioCarregarItemAtual();
+        },
+
+        oficioAvancarFila: function(removeAtual) {
+            if (removeAtual) this.oficioFila.splice(this.oficioFilaIndex, 1);
+            if (this.oficioFila.length === 0) {
+                this.oficioPasso = 4;
+                return;
+            }
+            if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
+            this.oficioCarregarItemAtual();
         },
 
         // =============================================
