@@ -26,7 +26,8 @@ var SYSTEM_PROMPT = [
     '{"unidade_texto":"","campus_texto":"","bloco_texto":"","sala_texto":"","itens":[{"patrimonio":"","descricao":"","tamanho_sugerido":"P|M|G|GG|null","confianca":0.0}],"avisos":[]}',
     "Regras importantes:",
     "1) NÃO extraia nem invente Número SEI. O usuário informa o SEI manualmente. Ignore 'Ofício nº X/AAAA/...' — isso NÃO é SEI.",
-    "2) unidade_texto = nome completo da unidade remetente (ex.: Instituto de Química), não genéricos como 'Instituto'.",
+    "2) unidade_texto = nome COMPLETO da unidade do timbre/remetente (ex.: 'Instituto de Química'). Nunca use só 'Instituto', 'Faculdade' ou 'Diretoria'.",
+    "   Prefira a linha do cabeçalho (ex.: Instituto de Química) e siglas no rodapé do ofício (IQUFU) só como reforço nos avisos.",
     "3) campus_texto/bloco_texto/sala_texto a partir do 'Local de Recolhimento' quando houver.",
     "4) patrimônios: sempre string (ex.: \"013330\"), preservando zeros à esquerda; tamanho_sugerido por porte físico (P/M/G/GG).",
     "5) se algo incerto, use avisos[] e deixe o campo vazio."

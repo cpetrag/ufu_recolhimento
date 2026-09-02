@@ -15,19 +15,38 @@
   function casarPorNome(texto, lista) {
     var t = normalizar(texto);
     if (!t || !lista || !lista.length) return null;
-    var i, n, exato = null, parcial = null;
+    var i, n, item, melhor = null, melhorScore = -1, score;
+
     for (i = 0; i < lista.length; i++) {
-      n = normalizar(lista[i].nome);
-      if (n === t) return lista[i];
-      if (!exato && (n.indexOf(t) !== -1 || t.indexOf(n) !== -1)) parcial = lista[i];
+      item = lista[i];
+      n = normalizar(item.nome);
+      if (!n) continue;
+      if (n === t) return item; // match exato sempre vence
+
+      score = -1;
+      if (n.indexOf(t) === 0 || t.indexOf(n) === 0) {
+        // um começa com o outro — favorece o nome mais longo (mais específico)
+        score = 200 + Math.min(n.length, t.length);
+      } else if (n.indexOf(t) !== -1 || t.indexOf(n) !== -1) {
+        // contains — nomes genéricos curtos (ex.: "instituto") perdem para "instituto de quimica"
+        score = 100 + Math.min(n.length, t.length);
+      }
+
+      if (score > melhorScore) {
+        melhorScore = score;
+        melhor = item;
+      } else if (score === melhorScore && melhor && n.length > normalizar(melhor.nome).length) {
+        melhor = item;
+      }
     }
-    // aliases comuns
-    if (t.indexOf("santa monica") !== -1 || t.indexOf("sta monica") !== -1) {
+
+    // aliases de campus
+    if (!melhor && (t.indexOf("santa monica") !== -1 || t.indexOf("sta monica") !== -1)) {
       for (i = 0; i < lista.length; i++) {
         if (normalizar(lista[i].nome).indexOf("santa monica") !== -1) return lista[i];
       }
     }
-    return parcial;
+    return melhor;
   }
 
   function casarBloco(texto, campusId, blocos) {

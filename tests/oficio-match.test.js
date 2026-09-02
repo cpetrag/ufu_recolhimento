@@ -1,4 +1,3 @@
-// tests/oficio-match.test.js
 var assert = require("assert");
 var path = require("path");
 var match = require(path.join(__dirname, "..", "oficio-match.js"));
@@ -19,6 +18,14 @@ var blocos = [
 ];
 assert.strictEqual(match.casarBloco("1J", "c1", blocos).id, "b1");
 assert.strictEqual(match.casarBloco("1J", "c2", blocos).id, "b2");
+
+var unidades = [
+  { id: "u0", nome: "Instituto" },
+  { id: "u1", nome: "Instituto de Química" },
+  { id: "u2", nome: "Instituto de Física" }
+];
+assert.strictEqual(match.casarPorNome("Instituto de Química", unidades).id, "u1");
+assert.strictEqual(match.casarPorNome("Instituto de Quimica", unidades).id, "u1");
 
 var base = [
   { NroPatrimonio: "707657", CodioBarra: "0", DescricaoBem: "NOTEBOOK DA BASE" }
