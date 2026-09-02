@@ -1296,6 +1296,7 @@ function app() {
 
         filaCarregar: function() {
             var self = this;
+            if (this._filaCarregarPromise) return this._filaCarregarPromise;
             if (typeof FilaFaltantes === "undefined" || typeof Papa === "undefined") {
                 this.filaDisponivel = false;
                 this.filaErro = "Módulo da fila indisponível.";
@@ -1303,8 +1304,7 @@ function app() {
             }
             this.filaCarregando = true;
             this.filaErro = null;
-            var local = FilaFaltantes.lerLocalStorage();
-            return fetch(FILA_FALTANTES_CSV_URL)
+            this._filaCarregarPromise = fetch(FILA_FALTANTES_CSV_URL)
                 .then(function(res) {
                     if (!res.ok) throw new Error("CSV da fila HTTP " + res.status);
                     return res.text();
@@ -1315,6 +1315,7 @@ function app() {
                     return API.listarFilaFaltantes().catch(function() {
                         return [];
                     }).then(function(remoto) {
+                        var local = FilaFaltantes.lerLocalStorage();
                         self.filaFaltantes = FilaFaltantes.mergeProgresso(catalogo, remoto, local);
                         var idx = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
                         if (idx < 0) idx = 0;
@@ -1347,13 +1348,22 @@ function app() {
                     self.filaCarregando = false;
                     self.filaDisponivel = false;
                     self.filaErro = err && err.message ? err.message : "Falha ao carregar fila";
+                })
+                .then(function(result) {
+                    self._filaCarregarPromise = null;
+                    return result;
+                }, function(err) {
+                    self._filaCarregarPromise = null;
+                    throw err;
                 });
+            return this._filaCarregarPromise;
         },
 
         filaAnterior: function() {
             if (this.filaIndice > 0) {
                 this.filaIndice -= 1;
                 this.filaPersistirLocal();
+                this.oficioReset();
                 this.filaAplicarCardAoOficio();
             }
         },
@@ -1362,6 +1372,7 @@ function app() {
             if (this.filaIndice < this.filaFaltantes.length - 1) {
                 this.filaIndice += 1;
                 this.filaPersistirLocal();
+                this.oficioReset();
                 this.filaAplicarCardAoOficio();
             }
         },
@@ -1415,11 +1426,13 @@ function app() {
                 self.oficioReset();
                 if (next >= 0) {
                     self.filaIndice = next;
+                    self.filaPersistirLocal();
+                    self.filaAplicarCardAoOficio();
                 } else {
                     self.filaIndice = Math.min(self.filaIndice, Math.max(0, self.filaFaltantes.length - 1));
+                    self.filaPersistirLocal();
+                    self.oficioPasso = 4;
                 }
-                self.filaPersistirLocal();
-                self.filaAplicarCardAoOficio();
             });
         },
 
@@ -1650,8 +1663,7 @@ function app() {
             this.oficioFila.splice(this.oficioFilaIndex, 1);
             if (this.oficioFila.length === 0) {
                 this.oficioPasso = 4;
-                this.filaMarcarFeitoEAvancar();
-                return;
+                return this.filaMarcarFeitoEAvancar();
             }
             if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
             this.oficioCarregarItemAtual();
@@ -1661,8 +1673,7 @@ function app() {
             if (removeAtual) this.oficioFila.splice(this.oficioFilaIndex, 1);
             if (this.oficioFila.length === 0) {
                 this.oficioPasso = 4;
-                this.filaMarcarFeitoEAvancar();
-                return;
+                return this.filaMarcarFeitoEAvancar();
             }
             if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
             this.oficioCarregarItemAtual();
