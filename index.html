@@ -13,7 +13,7 @@
     <script src="config.public.js"></script>
     <script src="api.js"></script>
     <script src="oficio-match.js"></script>
-    <script src="app.js?v=oficio-4"></script>
+    <script src="app.js?v=oficio-5"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -345,10 +345,11 @@
                                class="text-xs w-full file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-500 file:text-white file:font-bold"
                                x-on:change="oficioCapturarFoto($event)">
                         <div tabindex="0"
-                             class="mt-2 p-3 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 outline-none focus:ring-2 focus:ring-amber-500"
-                             x-on:paste.prevent="oficioColarFoto($event)">
-                            <p class="text-xs font-bold text-amber-700">📋 Cole uma imagem aqui</p>
-                            <p class="text-[10px] text-amber-600 mt-1">Clique nesta área e pressione Ctrl+V</p>
+                             class="mt-2 p-3 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 cursor-pointer outline-none focus:ring-2 focus:ring-amber-500 text-center"
+                             x-on:paste.prevent="oficioColarFoto($event)"
+                             x-on:click="$el.focus(); oficioColarFotoBtn()">
+                            <p class="text-xs font-bold text-amber-700">📋 Colar imagem</p>
+                            <p class="text-[10px] text-amber-600 mt-1">Clique para colar ou use Ctrl+V nesta área</p>
                         </div>
                         <template x-if="oficioItemForm.foto">
                             <div class="mt-3">
