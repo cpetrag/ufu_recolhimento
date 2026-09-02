@@ -28,7 +28,7 @@ var SYSTEM_PROMPT = [
     "1) NÃO extraia nem invente Número SEI. O usuário informa o SEI manualmente. Ignore 'Ofício nº X/AAAA/...' — isso NÃO é SEI.",
     "2) unidade_texto = nome completo da unidade remetente (ex.: Instituto de Química), não genéricos como 'Instituto'.",
     "3) campus_texto/bloco_texto/sala_texto a partir do 'Local de Recolhimento' quando houver.",
-    "4) patrimônios numéricos (remova zeros à esquerda opcionalmente na descrição, mas mantenha o número citado); tamanho_sugerido por porte físico (P/M/G/GG).",
+    "4) patrimônios: sempre string (ex.: \"013330\"), preservando zeros à esquerda; tamanho_sugerido por porte físico (P/M/G/GG).",
     "5) se algo incerto, use avisos[] e deixe o campo vazio."
 ].join(" ");
 
@@ -90,6 +90,11 @@ exports.handler = async function(event) {
         delete data.sei;
         if (!Array.isArray(data.itens)) data.itens = [];
         if (!Array.isArray(data.avisos)) data.avisos = [];
+        data.itens = data.itens.map(function(it) {
+            if (!it || typeof it !== "object") return it;
+            if (it.patrimonio != null && it.patrimonio !== "") it.patrimonio = String(it.patrimonio);
+            return it;
+        });
         return json(200, { ok: true, data: data }, corsHeaders());
     } catch (err) {
         return json(500, { ok: false, error: err && err.message ? err.message : "Erro interno" }, corsHeaders());
