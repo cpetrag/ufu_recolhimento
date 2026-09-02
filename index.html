@@ -46,6 +46,9 @@
             <button x-on:click="aba = 'processo'" x-bind:class="aba === 'processo' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
                 <span>📁</span><span>Processo</span>
             </button>
+            <button x-on:click="aba = 'oficio'" x-bind:class="aba === 'oficio' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
+                <span>✉️</span><span>Ofício</span>
+            </button>
             <button x-on:click="aba = 'itens'" x-bind:class="aba === 'itens' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center" x-bind:disabled="!processoId">
                 <span>🪑</span><span>Itens</span>
             </button>
@@ -109,6 +112,286 @@
                 <button class="w-full mt-6 bg-emerald-600 text-white p-4 rounded-xl font-bold shadow-lg" x-on:click="salvarProcesso()">
                     <span x-text="processoId ? 'ATUALIZAR DADOS' : 'INICIAR PROCESSO'"></span>
                 </button>
+            </div>
+        </div>
+
+        <!-- ================================ ABA OFÍCIO ================================ -->
+        <div x-show="aba === 'oficio'" x-cloak class="space-y-4">
+            <div class="bg-white p-3 rounded-xl shadow border-t-4 border-cyan-600">
+                <div class="grid grid-cols-4 gap-1" aria-label="Etapas do cadastro por ofício">
+                    <template x-for="etapa in [1, 2, 3, 4]" x-bind:key="'oficio-etapa-' + etapa">
+                        <div class="flex items-center gap-1">
+                            <span class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black"
+                                  x-bind:class="oficioPasso >= etapa ? 'bg-cyan-600 text-white' : 'bg-slate-200 text-slate-500'"
+                                  x-text="etapa"></span>
+                            <span class="hidden sm:inline text-[9px] font-bold uppercase"
+                                  x-bind:class="oficioPasso >= etapa ? 'text-cyan-700' : 'text-slate-400'"
+                                  x-text="['Colar', 'Revisar', 'Itens', 'Pronto'][etapa - 1]"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Passo 1: colar o texto -->
+            <div x-show="oficioPasso === 1" class="bg-white p-4 rounded-xl shadow border-t-4 border-cyan-600">
+                <h2 class="font-bold text-cyan-700 text-[10px] uppercase tracking-widest text-center">Colar texto do ofício</h2>
+                <p class="text-xs text-slate-500 text-center mt-2 mb-4">Cole o conteúdo completo para identificar o processo e os bens automaticamente.</p>
+
+                <label for="oficio-texto" class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Conteúdo do ofício</label>
+                <textarea id="oficio-texto"
+                          class="w-full min-h-64 p-3 border rounded-lg bg-slate-50 text-sm leading-relaxed resize-y outline-none focus:ring-2 focus:ring-cyan-400"
+                          x-model="oficioTexto"
+                          placeholder="Cole aqui o texto completo do ofício de recolhimento..."></textarea>
+
+                <div x-show="oficioErro" class="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700" role="alert">
+                    <p class="font-bold">Não foi possível extrair o ofício.</p>
+                    <p class="mt-1" x-text="oficioErro"></p>
+                </div>
+
+                <button type="button"
+                        class="w-full mt-4 bg-cyan-700 text-white p-4 rounded-xl font-black shadow-lg disabled:bg-slate-400 disabled:cursor-wait"
+                        x-on:click="oficioExtrair()"
+                        x-bind:disabled="oficioExtraindo">
+                    <span x-text="oficioExtraindo ? '⏳ EXTRAINDO DADOS...' : '✨ EXTRAIR COM IA'"></span>
+                </button>
+                <p x-show="oficioExtraindo" class="text-[10px] text-cyan-700 text-center font-bold mt-2">O texto será mantido caso a extração falhe.</p>
+            </div>
+
+            <!-- Passo 2: revisar o processo -->
+            <div x-show="oficioPasso === 2" class="bg-white p-4 rounded-xl shadow border-t-4 border-amber-500">
+                <h2 class="font-bold text-amber-700 text-[10px] uppercase tracking-widest text-center">Revisar dados do processo</h2>
+                <p class="text-xs text-slate-500 text-center mt-2 mb-4">Confira os dados extraídos antes de salvar e iniciar a fila de itens.</p>
+
+                <div x-show="oficioProcessoExistente" class="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-800">
+                    <p class="font-bold">ℹ️ Este processo já está cadastrado.</p>
+                    <p class="mt-1">Os dados existentes foram carregados. Ao continuar, somente itens novos serão enfileirados.</p>
+                </div>
+
+                <div x-show="oficioAvisos.length > 0" class="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                    <p class="text-[10px] font-bold text-amber-800 uppercase mb-1">Pontos para conferir</p>
+                    <ul class="space-y-1 text-xs text-amber-800">
+                        <template x-for="(aviso, index) in oficioAvisos" x-bind:key="'oficio-aviso-' + index">
+                            <li class="flex gap-2"><span>⚠️</span><span x-text="aviso"></span></li>
+                        </template>
+                    </ul>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Número SEI</label>
+                        <input class="w-full p-3 border rounded-lg text-lg font-mono bg-blue-50 focus:ring-2 focus:ring-blue-400 outline-none"
+                               placeholder="23117.000000/0000-00"
+                               x-model="oficioProcesso.sei"
+                               x-on:input="oficioProcesso.sei = API.mascaraSEI(oficioProcesso.sei)">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Pró-Reitoria / Unidade</label>
+                        <input class="w-full p-2 border rounded-lg bg-slate-50"
+                               list="oficio-unidades-list"
+                               x-model="oficioProcesso.pro_reitoria_unidade"
+                               placeholder="Selecione ou digite a unidade">
+                        <datalist id="oficio-unidades-list">
+                            <template x-for="u in unidades_db" x-bind:key="'oficio-unidade-' + u.id">
+                                <option x-bind:value="u.nome"></option>
+                            </template>
+                        </datalist>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Campus</label>
+                            <select class="w-full p-2 border rounded-lg bg-white"
+                                    x-model="oficioProcesso.campus_id"
+                                    x-on:change="oficioCarregarBlocos()">
+                                <option value="">Selecione</option>
+                                <template x-for="c in campus" x-bind:key="'oficio-campus-' + c.id">
+                                    <option x-bind:value="c.id" x-text="c.nome"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Bloco</label>
+                            <select class="w-full p-2 border rounded-lg bg-white"
+                                    x-model="oficioProcesso.bloco_id"
+                                    x-bind:disabled="!oficioProcesso.campus_id">
+                                <option value="">Não informado</option>
+                                <template x-for="b in oficioBlocos" x-bind:key="'oficio-bloco-' + b.id">
+                                    <option x-bind:value="b.id" x-text="b.nome"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Sala / Espaço</label>
+                        <input class="w-full p-2 border rounded-lg bg-slate-50"
+                               x-model="oficioProcesso.sala"
+                               placeholder="Ex.: Sala 204">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 mt-6">
+                    <button type="button"
+                            class="bg-slate-200 text-slate-700 p-3 rounded-xl font-bold text-xs"
+                            x-on:click="oficioPasso = 1">← Voltar</button>
+                    <button type="button"
+                            class="col-span-2 bg-amber-600 text-white p-3 rounded-xl font-black shadow text-xs"
+                            x-on:click="oficioSalvarProcesso()">SALVAR PROCESSO →</button>
+                </div>
+            </div>
+
+            <!-- Passo 3: confirmar itens -->
+            <div x-show="oficioPasso === 3" class="bg-white p-4 rounded-xl shadow border-t-4 border-blue-500">
+                <div class="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                        <h2 class="font-bold text-blue-700 text-[10px] uppercase tracking-widest">Confirmar item</h2>
+                        <p class="text-xs text-slate-500 mt-1">Revise os dados; foto e avaliação são opcionais.</p>
+                    </div>
+                    <span class="shrink-0 bg-blue-100 text-blue-700 text-[10px] font-black px-3 py-1.5 rounded-full"
+                          x-text="'Item ' + (oficioConfirmados + 1) + ' de ' + (oficioConfirmados + oficioFila.length)"></span>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Patrimônio</label>
+                        <div class="flex gap-2">
+                            <input class="flex-1 min-w-0 p-3 border rounded-lg bg-yellow-50 font-bold text-lg"
+                                   x-model="oficioItemForm.patrimonio"
+                                   x-bind:disabled="oficioItemForm.semPatrimonio"
+                                   placeholder="Nº do patrimônio">
+                            <label class="flex items-center gap-1 text-[9px] font-bold text-red-600 uppercase cursor-pointer bg-red-50 border border-red-200 rounded-lg px-2">
+                                <input type="checkbox"
+                                       x-model="oficioItemForm.semPatrimonio"
+                                       x-on:change="oficioItemForm.patrimonio = oficioItemForm.semPatrimonio ? 'Sem número' : ''">
+                                Sem nº
+                            </label>
+                        </div>
+                        <p x-show="oficioItemForm.naBase" class="text-[10px] text-emerald-700 font-bold mt-1">✓ Descrição encontrada na base patrimonial.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Descrição do bem</label>
+                        <textarea class="w-full p-2 border rounded-lg text-sm bg-slate-50"
+                                  rows="3"
+                                  x-model="oficioItemForm.descricao"
+                                  placeholder="Descreva o item"></textarea>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Tamanho</label>
+                            <span class="text-[9px] text-slate-400">Opcional</span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            <template x-for="tamanho in ['P', 'M', 'G', 'GG']" x-bind:key="'oficio-tamanho-' + tamanho">
+                                <button type="button"
+                                        class="p-3 rounded-lg text-xs font-black border-2 transition-all"
+                                        x-bind:class="oficioItemForm.tamanho === tamanho ? 'bg-blue-600 text-white border-blue-700 shadow' : 'bg-blue-50 text-blue-700 border-blue-200'"
+                                        x-on:click="oficioItemForm.tamanho = oficioItemForm.tamanho === tamanho ? '' : tamanho"
+                                        x-text="tamanho"></button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border text-xs font-bold cursor-pointer">
+                            <input type="checkbox" class="accent-blue-600" x-model="oficioItemForm.viavel">
+                            Viável
+                        </label>
+                        <label class="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border text-xs font-bold cursor-pointer">
+                            <input type="checkbox" class="accent-blue-600" x-model="oficioItemForm.bvm">
+                            BVM
+                        </label>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Avaliação</label>
+                            <span class="text-[9px] text-slate-400">Opcional</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button type="button"
+                                    class="p-2 rounded-lg text-[10px] font-bold uppercase border-2 transition-all"
+                                    x-bind:class="oficioItemForm.avaliacao === 'REUSO' ? 'bg-emerald-600 text-white border-emerald-700 shadow' : 'bg-emerald-50 text-emerald-700 border-emerald-200'"
+                                    x-on:click="oficioItemForm.avaliacao = oficioItemForm.avaliacao === 'REUSO' ? '' : 'REUSO'">♻️ Reuso</button>
+                            <button type="button"
+                                    class="p-2 rounded-lg text-[10px] font-bold uppercase border-2 transition-all"
+                                    x-bind:class="oficioItemForm.avaliacao === 'LAUDO_TECNICO' ? 'bg-amber-600 text-white border-amber-700 shadow' : 'bg-amber-50 text-amber-700 border-amber-200'"
+                                    x-on:click="oficioItemForm.avaliacao = oficioItemForm.avaliacao === 'LAUDO_TECNICO' ? '' : 'LAUDO_TECNICO'">📋 Laudo</button>
+                            <button type="button"
+                                    class="p-2 rounded-lg text-[10px] font-bold uppercase border-2 transition-all"
+                                    x-bind:class="oficioItemForm.avaliacao === 'DESCARTE' ? 'bg-red-600 text-white border-red-700 shadow' : 'bg-red-50 text-red-700 border-red-200'"
+                                    x-on:click="oficioItemForm.avaliacao = oficioItemForm.avaliacao === 'DESCARTE' ? '' : 'DESCARTE'">🗑 Descarte</button>
+                        </div>
+                    </div>
+
+                    <div class="p-3 border-2 border-dashed rounded-lg bg-slate-50 text-center">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">📷 Foto do item</label>
+                            <span class="text-[9px] text-slate-400">Opcional</span>
+                        </div>
+                        <input type="file"
+                               accept="image/*"
+                               capture="environment"
+                               class="text-xs w-full file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-500 file:text-white file:font-bold"
+                               x-on:change="oficioCapturarFoto($event)">
+                        <div tabindex="0"
+                             class="mt-2 p-3 border-2 border-dashed border-amber-400 rounded-lg bg-amber-50 outline-none focus:ring-2 focus:ring-amber-500"
+                             x-on:paste.prevent="oficioColarFoto($event)">
+                            <p class="text-xs font-bold text-amber-700">📋 Cole uma imagem aqui</p>
+                            <p class="text-[10px] text-amber-600 mt-1">Clique nesta área e pressione Ctrl+V</p>
+                        </div>
+                        <template x-if="oficioItemForm.foto">
+                            <div class="mt-3">
+                                <img x-bind:src="oficioItemForm.foto" alt="Prévia da foto do item" class="w-28 h-28 mx-auto rounded-lg border object-cover shadow-sm">
+                                <button type="button" class="mt-2 text-[10px] font-bold text-red-700 underline" x-on:click="oficioItemForm.foto = ''">Remover foto</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mt-5">
+                    <button type="button"
+                            class="col-span-2 bg-blue-600 text-white p-4 rounded-xl font-black shadow-lg disabled:bg-slate-400"
+                            x-on:click="oficioConfirmarItem()"
+                            x-bind:disabled="loading">
+                        <span x-text="loading ? 'SALVANDO...' : 'CONFIRMAR E PRÓXIMO →'"></span>
+                    </button>
+                    <button type="button"
+                            class="bg-slate-200 text-slate-700 p-3 rounded-xl font-bold text-xs"
+                            x-on:click="oficioPularItem()">Pular por agora</button>
+                    <button type="button"
+                            class="bg-red-50 text-red-700 border border-red-200 p-3 rounded-xl font-bold text-xs"
+                            x-on:click="oficioRemoverDaFila()">Remover da fila</button>
+                </div>
+            </div>
+
+            <!-- Passo 4: conclusão -->
+            <div x-show="oficioPasso === 4" class="bg-white p-5 rounded-xl shadow border-t-4 border-emerald-500 text-center">
+                <div class="w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center text-3xl">✓</div>
+                <h2 class="font-black text-emerald-700 text-lg mt-3">Ofício processado</h2>
+                <p class="text-xs text-slate-500 mt-1">O processo foi salvo e a fila foi concluída.</p>
+
+                <div class="grid grid-cols-2 gap-2 my-5">
+                    <div class="bg-slate-50 rounded-lg p-3">
+                        <p class="text-2xl font-black text-emerald-700" x-text="oficioConfirmados"></p>
+                        <p class="text-[9px] uppercase text-slate-500 font-bold">Itens confirmados</p>
+                    </div>
+                    <div class="bg-slate-50 rounded-lg p-3">
+                        <p class="text-2xl font-black text-slate-700" x-text="oficioFila.length"></p>
+                        <p class="text-[9px] uppercase text-slate-500 font-bold">Itens pendentes</p>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <button type="button"
+                            class="w-full bg-blue-600 text-white p-3 rounded-xl font-black shadow"
+                            x-on:click="aba = 'itens'">🪑 IR PARA ITENS</button>
+                    <button type="button"
+                            class="w-full bg-fuchsia-700 text-white p-3 rounded-xl font-black shadow"
+                            x-on:click="aba = 'classificacao'; buscaSeiClassif = processo.sei">🏷️ CLASSIFICAÇÃO</button>
+                    <button type="button"
+                            class="w-full bg-slate-200 text-slate-700 p-3 rounded-xl font-bold"
+                            x-on:click="oficioReset()">✉️ NOVO OFÍCIO</button>
+                </div>
             </div>
         </div>
 
