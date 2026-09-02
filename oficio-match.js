@@ -49,6 +49,20 @@
     return melhor;
   }
 
+  function casarUnidadeNoTexto(textoOficio, lista) {
+    var t = normalizar(textoOficio);
+    if (!t || !lista || !lista.length) return null;
+    var i, n, melhor = null;
+    for (i = 0; i < lista.length; i++) {
+      n = normalizar(lista[i].nome);
+      if (!n || n.length < 5) continue; // ignora nomes genéricos demais
+      if (t.indexOf(n) !== -1) {
+        if (!melhor || n.length > normalizar(melhor.nome).length) melhor = lista[i];
+      }
+    }
+    return melhor;
+  }
+
   function casarBloco(texto, campusId, blocos) {
     if (!campusId) return null;
     var filtrados = (blocos || []).filter(function (b) { return b.campus_id === campusId; });
@@ -83,5 +97,5 @@
     };
   }
 
-  return { normalizar: normalizar, casarPorNome: casarPorNome, casarBloco: casarBloco, acharNaBase: acharNaBase, enriquecerItem: enriquecerItem };
+  return { normalizar: normalizar, casarPorNome: casarPorNome, casarUnidadeNoTexto: casarUnidadeNoTexto, casarBloco: casarBloco, acharNaBase: acharNaBase, enriquecerItem: enriquecerItem };
 });

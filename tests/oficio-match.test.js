@@ -26,6 +26,10 @@ var unidades = [
 ];
 assert.strictEqual(match.casarPorNome("Instituto de Química", unidades).id, "u1");
 assert.strictEqual(match.casarPorNome("Instituto de Quimica", unidades).id, "u1");
+assert.strictEqual(
+  match.casarUnidadeNoTexto("Timbre\nInstituto de Química\nOfício nº 157/2026", unidades).id,
+  "u1"
+);
 
 var base = [
   { NroPatrimonio: "707657", CodioBarra: "0", DescricaoBem: "NOTEBOOK DA BASE" }

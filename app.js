@@ -1289,6 +1289,12 @@ function app() {
                 self.oficioExtraindo = false;
                 self.oficioAvisos = data.avisos || [];
                 var unidade = OficioMatch.casarPorNome(data.unidade_texto, self.unidades_db);
+                var unidadeNoTexto = OficioMatch.casarUnidadeNoTexto(texto, self.unidades_db);
+                if (unidadeNoTexto) {
+                    if (!unidade || OficioMatch.normalizar(unidadeNoTexto.nome).length > OficioMatch.normalizar(unidade.nome).length) {
+                        unidade = unidadeNoTexto;
+                    }
+                }
                 var campus = OficioMatch.casarPorNome(data.campus_texto, self.campus);
                 self.oficioProcesso = {
                     sei: seiInformado,
