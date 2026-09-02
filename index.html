@@ -13,7 +13,8 @@
     <script src="config.public.js"></script>
     <script src="api.js"></script>
     <script src="oficio-match.js"></script>
-    <script src="app.js?v=oficio-5"></script>
+    <script src="fila-faltantes.js"></script>
+    <script src="app.js?v=fila-1"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -46,7 +47,7 @@
             <button x-on:click="aba = 'processo'" x-bind:class="aba === 'processo' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
                 <span>📁</span><span>Processo</span>
             </button>
-            <button x-on:click="aba = 'oficio'" x-bind:class="aba === 'oficio' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
+            <button x-on:click="aba = 'oficio'; filaCarregar()" x-bind:class="aba === 'oficio' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
                 <span>✉️</span><span>Ofício</span>
             </button>
             <button x-on:click="aba = 'itens'" x-bind:class="aba === 'itens' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center" x-bind:disabled="!processoId">

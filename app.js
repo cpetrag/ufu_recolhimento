@@ -1,4 +1,5 @@
 var BASE_CSV_URL = "https://custodioufu.netlify.app/base.csv";
+var FILA_FALTANTES_CSV_URL = "data/Processos_faltando_no_sistema.csv";
 
 var EMPRESAS_MAP = {
     "15": "HC",
@@ -45,6 +46,11 @@ function app() {
         oficioItemForm: { patrimonio: "", descricao: "", tamanho: "", viavel: false, bvm: false, foto: "", avaliacao: "", semPatrimonio: false, naBase: false },
         oficioConfirmados: 0,
         oficioProcessoExistente: false,
+        filaFaltantes: [],
+        filaIndice: 0,
+        filaCarregando: false,
+        filaErro: null,
+        filaDisponivel: false,
 
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
@@ -1259,6 +1265,164 @@ function app() {
         // =============================================
         // ABA OFÍCIO
         // =============================================
+        get filaAtual() {
+            if (!this.filaFaltantes.length) return null;
+            if (this.filaIndice < 0 || this.filaIndice >= this.filaFaltantes.length) return null;
+            return this.filaFaltantes[this.filaIndice];
+        },
+
+        get filaFeitosCount() {
+            return typeof FilaFaltantes !== "undefined"
+                ? FilaFaltantes.contarFeitos(this.filaFaltantes)
+                : 0;
+        },
+
+        get filaRestantesCount() {
+            return Math.max(0, this.filaFaltantes.length - this.filaFeitosCount);
+        },
+
+        filaPersistirLocal: function() {
+            if (typeof FilaFaltantes === "undefined") return;
+            var snap = FilaFaltantes.paraLocalStorage(this.filaFaltantes, this.filaIndice);
+            FilaFaltantes.gravarLocalStorage(snap);
+        },
+
+        filaAplicarCardAoOficio: function() {
+            var card = this.filaAtual;
+            if (!card) return;
+            if (!this.oficioProcesso) this.oficioProcesso = { sei: "", pro_reitoria_unidade: "", campus_id: "", bloco_id: "", sala: "" };
+            this.oficioProcesso.sei = card.sei;
+        },
+
+        filaCarregar: function() {
+            var self = this;
+            if (typeof FilaFaltantes === "undefined" || typeof Papa === "undefined") {
+                this.filaDisponivel = false;
+                this.filaErro = "Módulo da fila indisponível.";
+                return Promise.resolve();
+            }
+            this.filaCarregando = true;
+            this.filaErro = null;
+            var local = FilaFaltantes.lerLocalStorage();
+            return fetch(FILA_FALTANTES_CSV_URL)
+                .then(function(res) {
+                    if (!res.ok) throw new Error("CSV da fila HTTP " + res.status);
+                    return res.text();
+                })
+                .then(function(texto) {
+                    var parsed = Papa.parse(texto, { header: true, skipEmptyLines: true });
+                    var catalogo = FilaFaltantes.catalogoDeCsv(parsed.data);
+                    return API.listarFilaFaltantes().catch(function() {
+                        return [];
+                    }).then(function(remoto) {
+                        self.filaFaltantes = FilaFaltantes.mergeProgresso(catalogo, remoto, local);
+                        var idx = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
+                        if (idx < 0) idx = 0;
+                        if (local && typeof local.indice_atual === "number"
+                            && local.indice_atual >= 0
+                            && local.indice_atual < self.filaFaltantes.length
+                            && self.filaFaltantes[local.indice_atual].status !== "feito") {
+                            idx = local.indice_atual;
+                        }
+                        self.filaIndice = idx;
+                        self.filaDisponivel = self.filaFaltantes.length > 0;
+                        self.filaPersistirLocal();
+                        self.filaAplicarCardAoOficio();
+                        self.filaCarregando = false;
+                        // Sync: upsert itens locais mais novos que o remoto (best-effort)
+                        var remotoMap = {};
+                        (remoto || []).forEach(function(r) { remotoMap[r.sei] = r; });
+                        self.filaFaltantes.forEach(function(item) {
+                            if (item.status !== "feito") return;
+                            var r = remotoMap[item.sei];
+                            var localTs = item.atualizado_em ? Date.parse(item.atualizado_em) : 0;
+                            var remotoTs = r && r.atualizado_em ? Date.parse(r.atualizado_em) : 0;
+                            if (!r || localTs > remotoTs) {
+                                API.upsertFilaFaltante(item).catch(function() { /* retry na próxima abertura */ });
+                            }
+                        });
+                    });
+                })
+                .catch(function(err) {
+                    self.filaCarregando = false;
+                    self.filaDisponivel = false;
+                    self.filaErro = err && err.message ? err.message : "Falha ao carregar fila";
+                });
+        },
+
+        filaAnterior: function() {
+            if (this.filaIndice > 0) {
+                this.filaIndice -= 1;
+                this.filaPersistirLocal();
+                this.filaAplicarCardAoOficio();
+            }
+        },
+
+        filaProximo: function() {
+            if (this.filaIndice < this.filaFaltantes.length - 1) {
+                this.filaIndice += 1;
+                this.filaPersistirLocal();
+                this.filaAplicarCardAoOficio();
+            }
+        },
+
+        filaPular: function() {
+            if (typeof FilaFaltantes === "undefined") return;
+            var next = FilaFaltantes.indiceProximoPendente(this.filaFaltantes, this.filaIndice);
+            if (next < 0) {
+                alert("Não há próximo pendente na fila.");
+                return;
+            }
+            this.filaIndice = next;
+            this.filaPersistirLocal();
+            this.oficioReset();
+            this.filaAplicarCardAoOficio();
+        },
+
+        filaAbrirSei: function() {
+            var card = this.filaAtual;
+            if (!card || !card.link) {
+                alert("Este item não tem Link_Permanente.");
+                return;
+            }
+            window.open(card.link, "_blank", "noopener,noreferrer");
+        },
+
+        filaMarcarFeitoEAvancar: function() {
+            var self = this;
+            if (!this.filaDisponivel || typeof FilaFaltantes === "undefined") return Promise.resolve();
+            var card = this.filaAtual;
+            if (!card) return Promise.resolve();
+            if (!FilaFaltantes.seiIguais(card.sei, this.oficioProcesso && this.oficioProcesso.sei)) {
+                alert("SEI do formulário difere do card da fila. Feito automático bloqueado.");
+                return Promise.resolve();
+            }
+            var agora = new Date().toISOString();
+            card.status = "feito";
+            card.atualizado_em = agora;
+            card.processo_id = this.processoId || card.processo_id || null;
+            this.filaPersistirLocal();
+            return API.upsertFilaFaltante({
+                sei: card.sei,
+                status: "feito",
+                atualizado_em: agora,
+                processo_id: card.processo_id
+            }).catch(function(err) {
+                console.warn("fila_faltantes sync falhou; mantido no localStorage", err);
+                alert("Progresso salvo neste navegador. Sync com servidor falhou — será retentado ao reabrir a aba.");
+            }).then(function() {
+                var next = FilaFaltantes.indiceProximoPendente(self.filaFaltantes, self.filaIndice);
+                self.oficioReset();
+                if (next >= 0) {
+                    self.filaIndice = next;
+                } else {
+                    self.filaIndice = Math.min(self.filaIndice, Math.max(0, self.filaFaltantes.length - 1));
+                }
+                self.filaPersistirLocal();
+                self.filaAplicarCardAoOficio();
+            });
+        },
+
         oficioReset: function() {
             this.oficioPasso = 1;
             this.oficioTexto = "";
@@ -1373,7 +1537,7 @@ function app() {
                     self.oficioConfirmados = 0;
                     if (self.oficioFila.length === 0) {
                         self.oficioPasso = 4;
-                        return;
+                        return self.filaMarcarFeitoEAvancar();
                     }
                     self.oficioFilaIndex = 0;
                     self.oficioCarregarItemAtual();
@@ -1486,6 +1650,7 @@ function app() {
             this.oficioFila.splice(this.oficioFilaIndex, 1);
             if (this.oficioFila.length === 0) {
                 this.oficioPasso = 4;
+                this.filaMarcarFeitoEAvancar();
                 return;
             }
             if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
@@ -1496,6 +1661,7 @@ function app() {
             if (removeAtual) this.oficioFila.splice(this.oficioFilaIndex, 1);
             if (this.oficioFila.length === 0) {
                 this.oficioPasso = 4;
+                this.filaMarcarFeitoEAvancar();
                 return;
             }
             if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;
