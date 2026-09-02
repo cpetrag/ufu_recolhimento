@@ -118,6 +118,43 @@
 
         <!-- ================================ ABA OFÍCIO ================================ -->
         <div x-show="aba === 'oficio'" x-cloak class="space-y-4">
+            <!-- Fila de faltantes -->
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-violet-600 space-y-3" x-show="filaDisponivel || filaCarregando || filaErro">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-xs font-bold text-slate-700">
+                        <span x-show="filaCarregando">Carregando fila…</span>
+                        <span x-show="!filaCarregando && filaDisponivel"
+                              x-text="'Faltante ' + (filaIndice + 1) + ' de ' + filaFaltantes.length
+                                + ' · feitos ' + filaFeitosCount
+                                + ' · restantes ' + filaRestantesCount"></span>
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-slate-100 text-slate-700"
+                                x-on:click="filaAnterior()" x-bind:disabled="filaIndice <= 0">Anterior</button>
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-slate-100 text-slate-700"
+                                x-on:click="filaProximo()" x-bind:disabled="filaIndice >= filaFaltantes.length - 1">Próximo</button>
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-amber-100 text-amber-800"
+                                x-on:click="filaPular()">Pular</button>
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-violet-600 text-white"
+                                x-on:click="filaAbrirSei()"
+                                x-bind:disabled="!(filaAtual && filaAtual.link)">Abrir no SEI</button>
+                    </div>
+                </div>
+                <div x-show="filaErro" class="text-xs text-red-700 font-bold" x-text="filaErro"></div>
+                <div x-show="filaAtual" class="rounded-lg bg-violet-50 border border-violet-100 p-3 text-xs space-y-1">
+                    <p><span class="font-bold text-slate-500 uppercase text-[10px]">SEI</span>
+                       <span class="font-mono font-bold text-slate-800 ml-2" x-text="filaAtual.sei"></span></p>
+                    <p x-show="filaAtual.especificacao"><span class="font-bold text-slate-500 uppercase text-[10px]">Especificação</span>
+                       <span class="ml-2 text-slate-700" x-text="filaAtual.especificacao"></span></p>
+                    <p x-show="filaAtual.etiqueta"><span class="font-bold text-slate-500 uppercase text-[10px]">Etiqueta</span>
+                       <span class="ml-2 text-slate-700" x-text="filaAtual.etiqueta"></span></p>
+                    <p><span class="font-bold text-slate-500 uppercase text-[10px]">Status</span>
+                       <span class="ml-2 font-bold"
+                             x-bind:class="filaAtual.status === 'feito' ? 'text-emerald-700' : 'text-amber-700'"
+                             x-text="filaAtual.status === 'feito' ? 'feito' : (oficioPasso > 1 ? 'em andamento' : 'pendente')"></span></p>
+                </div>
+            </div>
+
             <div class="bg-white p-3 rounded-xl shadow border-t-4 border-cyan-600">
                 <div class="grid grid-cols-4 gap-1" aria-label="Etapas do cadastro por ofício">
                     <template x-for="etapa in [1, 2, 3, 4]" x-bind:key="'oficio-etapa-' + etapa">
