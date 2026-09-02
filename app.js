@@ -1288,17 +1288,10 @@ function app() {
             API.extrairOficio(texto).then(function(data) {
                 self.oficioExtraindo = false;
                 self.oficioAvisos = data.avisos || [];
-                var unidade = OficioMatch.casarPorNome(data.unidade_texto, self.unidades_db);
-                var unidadeNoTexto = OficioMatch.casarUnidadeNoTexto(texto, self.unidades_db);
-                if (unidadeNoTexto) {
-                    if (!unidade || OficioMatch.normalizar(unidadeNoTexto.nome).length > OficioMatch.normalizar(unidade.nome).length) {
-                        unidade = unidadeNoTexto;
-                    }
-                }
                 var campus = OficioMatch.casarPorNome(data.campus_texto, self.campus);
                 self.oficioProcesso = {
                     sei: seiInformado,
-                    pro_reitoria_unidade: unidade ? unidade.nome : (data.unidade_texto || ""),
+                    pro_reitoria_unidade: OficioMatch.resolverNomeUnidade(texto, data.unidade_texto, self.unidades_db),
                     campus_id: campus ? campus.id : "",
                     bloco_id: "",
                     sala: data.sala_texto || ""

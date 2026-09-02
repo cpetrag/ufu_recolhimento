@@ -12,6 +12,15 @@
       .trim();
   }
 
+  var NOMES_GENERICOS = {
+    instituto: true,
+    faculdade: true,
+    centro: true,
+    diretoria: true,
+    escola: true,
+    orgao: true
+  };
+
   function casarPorNome(texto, lista) {
     var t = normalizar(texto);
     if (!t || !lista || !lista.length) return null;
@@ -21,15 +30,23 @@
       item = lista[i];
       n = normalizar(item.nome);
       if (!n) continue;
-      if (n === t) return item; // match exato sempre vence
+      if (n === t) return item;
 
       score = -1;
       if (n.indexOf(t) === 0 || t.indexOf(n) === 0) {
-        // um começa com o outro — favorece o nome mais longo (mais específico)
         score = 200 + Math.min(n.length, t.length);
+        // Evita "INSTITUTO" ganhar de "Instituto de Química"
+        if (t.indexOf(n) === 0 && t.length > n.length + 2 && (NOMES_GENERICOS[n] || n.length <= 12)) {
+          score = 20 + n.length;
+        }
       } else if (n.indexOf(t) !== -1 || t.indexOf(n) !== -1) {
-        // contains — nomes genéricos curtos (ex.: "instituto") perdem para "instituto de quimica"
         score = 100 + Math.min(n.length, t.length);
+        if (NOMES_GENERICOS[n] && t.length > n.length + 2) score = 15 + n.length;
+      }
+
+      // Alias: texto fala de Química / IQUFU → favorece cadastro IQUFU
+      if ((/quimica|iqufu|diriqufu/.test(t) || /quimica|iqufu/.test(n)) && n === "iqufu") {
+        score = Math.max(score, 500);
       }
 
       if (score > melhorScore) {
@@ -40,7 +57,6 @@
       }
     }
 
-    // aliases de campus
     if (!melhor && (t.indexOf("santa monica") !== -1 || t.indexOf("sta monica") !== -1)) {
       for (i = 0; i < lista.length; i++) {
         if (normalizar(lista[i].nome).indexOf("santa monica") !== -1) return lista[i];
@@ -52,15 +68,49 @@
   function casarUnidadeNoTexto(textoOficio, lista) {
     var t = normalizar(textoOficio);
     if (!t || !lista || !lista.length) return null;
-    var i, n, melhor = null;
+    var i, n, melhor = null, melhorScore = -1, score;
     for (i = 0; i < lista.length; i++) {
       n = normalizar(lista[i].nome);
-      if (!n || n.length < 5) continue; // ignora nomes genéricos demais
-      if (t.indexOf(n) !== -1) {
-        if (!melhor || n.length > normalizar(melhor.nome).length) melhor = lista[i];
+      if (!n || n.length < 4) continue;
+      if (t.indexOf(n) === -1) continue;
+      score = n.length;
+      if (NOMES_GENERICOS[n] && /instituto de /.test(t)) score = 1; // quase ignora
+      if (n === "iqufu" && /iqufu|diriqufu|instituto de quimica/.test(t)) score = 1000;
+      if (score > melhorScore) {
+        melhorScore = score;
+        melhor = lista[i];
       }
     }
     return melhor;
+  }
+
+  /**
+   * Escolhe o rótulo da unidade para o formulário.
+   * No banco muitas vezes só existe "INSTITUTO" / "IQUFU"; o ofício traz "Instituto de Química".
+   */
+  function resolverNomeUnidade(textoOficio, unidadeTextoIa, lista) {
+    var t = normalizar(textoOficio || "");
+    var ia = String(unidadeTextoIa || "").trim();
+    var iaN = normalizar(ia);
+
+    if (/instituto de quimica/.test(iaN) || /instituto de quimica|iqufu|diriqufu/.test(t)) {
+      if (/instituto de quimica/.test(iaN)) return ia;
+      var mQuim = String(textoOficio || "").match(/Instituto\s+de\s+Qu[ií]mica/i);
+      if (mQuim) return mQuim[0].replace(/\s+/g, " ").trim();
+      return "Instituto de Química";
+    }
+
+    var matched = casarPorNome(ia || textoOficio, lista) || casarUnidadeNoTexto(textoOficio, lista);
+    if (matched) {
+      var mn = normalizar(matched.nome);
+      if (NOMES_GENERICOS[mn] && ia && iaN.length > mn.length) return ia;
+      if (NOMES_GENERICOS[mn]) {
+        var mInst = String(textoOficio || "").match(/Instituto\s+de\s+[A-Za-zÀ-ú]+(?:\s+(?:de\s+)?[A-Za-zÀ-ú]+){0,3}/i);
+        if (mInst) return mInst[0].replace(/\s+/g, " ").trim();
+      }
+      return matched.nome;
+    }
+    return ia || "";
   }
 
   function casarBloco(texto, campusId, blocos) {
@@ -97,5 +147,13 @@
     };
   }
 
-  return { normalizar: normalizar, casarPorNome: casarPorNome, casarUnidadeNoTexto: casarUnidadeNoTexto, casarBloco: casarBloco, acharNaBase: acharNaBase, enriquecerItem: enriquecerItem };
+  return {
+    normalizar: normalizar,
+    casarPorNome: casarPorNome,
+    casarUnidadeNoTexto: casarUnidadeNoTexto,
+    resolverNomeUnidade: resolverNomeUnidade,
+    casarBloco: casarBloco,
+    acharNaBase: acharNaBase,
+    enriquecerItem: enriquecerItem
+  };
 });

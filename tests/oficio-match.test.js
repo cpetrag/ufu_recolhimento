@@ -20,16 +20,21 @@ assert.strictEqual(match.casarBloco("1J", "c1", blocos).id, "b1");
 assert.strictEqual(match.casarBloco("1J", "c2", blocos).id, "b2");
 
 var unidades = [
-  { id: "u0", nome: "Instituto" },
-  { id: "u1", nome: "Instituto de Química" },
-  { id: "u2", nome: "Instituto de Física" }
+  { id: "u0", nome: "INSTITUTO" },
+  { id: "u1", nome: "IQUFU" },
+  { id: "u2", nome: "FACED" }
 ];
-assert.strictEqual(match.casarPorNome("Instituto de Química", unidades).id, "u1");
-assert.strictEqual(match.casarPorNome("Instituto de Quimica", unidades).id, "u1");
+
+var oficioIqufu = "UNIVERSIDADE FEDERAL DE UBERLÂNDIA\nInstituto de Química\nOfício nº 157/2026/DIRIQUFU/IQUFU-UFU";
 assert.strictEqual(
-  match.casarUnidadeNoTexto("Timbre\nInstituto de Química\nOfício nº 157/2026", unidades).id,
-  "u1"
+  match.resolverNomeUnidade(oficioIqufu, "Instituto de Química", unidades),
+  "Instituto de Química"
 );
+assert.strictEqual(
+  match.resolverNomeUnidade(oficioIqufu, "Instituto", unidades),
+  "Instituto de Química"
+);
+assert.strictEqual(match.casarUnidadeNoTexto(oficioIqufu, unidades).nome, "IQUFU");
 
 var base = [
   { NroPatrimonio: "707657", CodioBarra: "0", DescricaoBem: "NOTEBOOK DA BASE" }
