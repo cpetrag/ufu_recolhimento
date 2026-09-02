@@ -358,6 +358,26 @@ function restaurarBackupCompleto(backup) {
         });
 }
 
+function listarFilaFaltantes() {
+    return db.from("fila_faltantes").select("sei,status,atualizado_em,processo_id").then(function (r) {
+        if (r.error) throw r.error;
+        return r.data || [];
+    });
+}
+
+function upsertFilaFaltante(row) {
+    var payload = {
+        sei: String(row.sei || "").trim(),
+        status: row.status === "feito" ? "feito" : "pendente",
+        atualizado_em: row.atualizado_em || new Date().toISOString(),
+        processo_id: row.processo_id || null
+    };
+    return db.from("fila_faltantes").upsert([payload], { onConflict: "sei" }).select().single().then(function (r) {
+        if (r.error) throw r.error;
+        return r.data;
+    });
+}
+
 // =============================================
 // EXPORTAR
 // =============================================
@@ -376,5 +396,7 @@ window.API = {
     exportarBackupCompleto: exportarBackupCompleto,
     obterEstatisticasBackup: obterEstatisticasBackup,
     restaurarBackupCompleto: restaurarBackupCompleto,
+    listarFilaFaltantes: listarFilaFaltantes,
+    upsertFilaFaltante: upsertFilaFaltante,
     BACKUP_VERSION: BACKUP_VERSION
 };
