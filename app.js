@@ -1381,6 +1381,10 @@ function app() {
             if (typeof FilaFaltantes === "undefined") return;
             var next = FilaFaltantes.indiceProximoPendente(this.filaFaltantes, this.filaIndice);
             if (next < 0) {
+                var first = FilaFaltantes.indicePrimeiroPendente(this.filaFaltantes);
+                if (first >= 0 && first !== this.filaIndice) next = first;
+            }
+            if (next < 0) {
                 alert("Não há próximo pendente na fila.");
                 return;
             }
@@ -1422,7 +1426,9 @@ function app() {
                 console.warn("fila_faltantes sync falhou; mantido no localStorage", err);
                 alert("Progresso salvo neste navegador. Sync com servidor falhou — será retentado ao reabrir a aba.");
             }).then(function() {
+                // Próximo à frente; se não houver, volta ao primeiro pendente (itens pulados antes).
                 var next = FilaFaltantes.indiceProximoPendente(self.filaFaltantes, self.filaIndice);
+                if (next < 0) next = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
                 self.oficioReset();
                 if (next >= 0) {
                     self.filaIndice = next;
