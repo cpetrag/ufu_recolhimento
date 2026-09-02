@@ -51,6 +51,7 @@ function app() {
         filaCarregando: false,
         filaErro: null,
         filaDisponivel: false,
+        filaBackupMsg: null,
 
         // ── aba processos ─────────────────────────────
         processosList: [], processosCarregando: false, processosErro: null,
@@ -1294,6 +1295,52 @@ function app() {
             this.oficioProcesso.sei = card.sei;
         },
 
+        // Se o SEI do card já existe em `processos`: avisa, marca Feito e abre na aba Itens.
+        filaChecarSeJaExisteNoSistema: function() {
+            var self = this;
+            var card = this.filaAtual;
+            if (!card || card.status === "feito") return Promise.resolve();
+            if (typeof FilaFaltantes === "undefined") return Promise.resolve();
+            var sei = card.sei;
+            return API.buscarProcessoPorSEI(sei).then(function(proc) {
+                if (!proc) return;
+                if (!self.filaAtual || !FilaFaltantes.seiIguais(self.filaAtual.sei, sei)) return;
+                return API.carregarItensProcesso(proc.id).then(function(itens) {
+                    if (!self.filaAtual || !FilaFaltantes.seiIguais(self.filaAtual.sei, sei)) return;
+                    var n = (itens || []).length;
+                    alert(
+                        "SEI " + sei + " já está no sistema (" + n + " item" + (n === 1 ? "" : "s") + ").\n" +
+                        "Abrindo o processo e marcando como Feito na fila."
+                    );
+                    var agora = new Date().toISOString();
+                    card.status = "feito";
+                    card.atualizado_em = agora;
+                    card.processo_id = proc.id;
+                    self.filaPersistirLocal();
+                    return API.upsertFilaFaltante({
+                        sei: card.sei,
+                        status: "feito",
+                        atualizado_em: agora,
+                        processo_id: proc.id
+                    }).catch(function(err) {
+                        console.warn("fila_faltantes sync falhou; mantido no localStorage", err);
+                    }).then(function() {
+                        var next = FilaFaltantes.indiceProximoPendente(self.filaFaltantes, self.filaIndice);
+                        if (next < 0) next = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
+                        if (next >= 0) {
+                            self.filaIndice = next;
+                            self.filaPersistirLocal();
+                            self.oficioReset();
+                            self.filaAplicarCardAoOficio();
+                        }
+                        self._carregarProcesso(proc, { aba: "itens" });
+                    });
+                });
+            }).catch(function() {
+                // Sem rede / tabela — segue o fluxo Ofício normalmente.
+            });
+        },
+
         filaCarregar: function() {
             var self = this;
             if (this._filaCarregarPromise) return this._filaCarregarPromise;
@@ -1330,6 +1377,7 @@ function app() {
                         self.filaPersistirLocal();
                         self.filaAplicarCardAoOficio();
                         self.filaCarregando = false;
+                        self.filaChecarSeJaExisteNoSistema();
                         // Sync: upsert itens locais mais novos que o remoto (best-effort)
                         var remotoMap = {};
                         (remoto || []).forEach(function(r) { remotoMap[r.sei] = r; });
@@ -1365,6 +1413,7 @@ function app() {
                 this.filaPersistirLocal();
                 this.oficioReset();
                 this.filaAplicarCardAoOficio();
+                this.filaChecarSeJaExisteNoSistema();
             }
         },
 
@@ -1374,6 +1423,7 @@ function app() {
                 this.filaPersistirLocal();
                 this.oficioReset();
                 this.filaAplicarCardAoOficio();
+                this.filaChecarSeJaExisteNoSistema();
             }
         },
 
@@ -1392,6 +1442,7 @@ function app() {
             this.filaPersistirLocal();
             this.oficioReset();
             this.filaAplicarCardAoOficio();
+            this.filaChecarSeJaExisteNoSistema();
         },
 
         filaAbrirSei: function() {
@@ -1401,6 +1452,97 @@ function app() {
                 return;
             }
             window.open(card.link, "_blank", "noopener,noreferrer");
+        },
+
+        filaExportarProgresso: function() {
+            if (typeof FilaFaltantes === "undefined") {
+                alert("Módulo da fila indisponível.");
+                return;
+            }
+            if (!this.filaFaltantes.length) {
+                alert("Carregue a fila antes de exportar.");
+                return;
+            }
+            var backup = FilaFaltantes.montarBackup(this.filaFaltantes, this.filaIndice);
+            var blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+            var nome = "fila_faltantes_progresso_" + this._timestampArquivo() + ".json";
+            this._baixarArquivo(blob, nome);
+            this.filaBackupMsg = "Progresso baixado: " + nome + " (" + backup.itens.length + " registros).";
+        },
+
+        filaRestaurarProgresso: function(e) {
+            var self = this;
+            var file = e && e.target && e.target.files && e.target.files[0];
+            if (e && e.target) e.target.value = "";
+            if (!file) return;
+            if (typeof FilaFaltantes === "undefined") {
+                alert("Módulo da fila indisponível.");
+                return;
+            }
+            var reader = new FileReader();
+            reader.onload = function() {
+                try {
+                    var arquivo = FilaFaltantes.parseBackup(String(reader.result || ""));
+                    var feitosAntes = self.filaFeitosCount;
+                    var catalogo = self.filaFaltantes.length
+                        ? self.filaFaltantes
+                        : [];
+                    var aplicar = function(catalogoBase) {
+                        var local = FilaFaltantes.lerLocalStorage();
+                        return API.listarFilaFaltantes().catch(function() { return []; }).then(function(remoto) {
+                            var merged = FilaFaltantes.mergeComArquivo(catalogoBase, remoto, local, arquivo);
+                            self.filaFaltantes = merged;
+                            self.filaDisponivel = merged.length > 0;
+                            var idx = typeof arquivo.indice_atual === "number" ? arquivo.indice_atual : 0;
+                            if (idx < 0 || idx >= merged.length || merged[idx].status === "feito") {
+                                idx = FilaFaltantes.indicePrimeiroPendente(merged);
+                                if (idx < 0) idx = 0;
+                            }
+                            self.filaIndice = idx;
+                            self.filaPersistirLocal();
+                            self.oficioReset();
+                            self.filaAplicarCardAoOficio();
+
+                            var arquivoMap = {};
+                            arquivo.itens.forEach(function(i) { arquivoMap[i.sei] = i; });
+                            var paraSync = merged.filter(function(item) {
+                                var arq = arquivoMap[item.sei];
+                                if (!arq || !item.atualizado_em) return false;
+                                return String(item.atualizado_em) === String(arq.atualizado_em);
+                            });
+                            return API.upsertFilaFaltantesLote(paraSync).catch(function(err) {
+                                console.warn("sync restore fila falhou", err);
+                                alert("Progresso mesclado neste navegador. Sync com Supabase falhou — confira se a tabela fila_faltantes existe.");
+                                return 0;
+                            }).then(function() {
+                                var feitosDepois = FilaFaltantes.contarFeitos(merged);
+                                self.filaBackupMsg = "Restaurado com merge: " + arquivo.itens.length +
+                                    " no arquivo · feitos " + feitosAntes + " → " + feitosDepois + ".";
+                                self.filaChecarSeJaExisteNoSistema();
+                            });
+                        });
+                    };
+
+                    if (catalogo.length) {
+                        aplicar(catalogo);
+                        return;
+                    }
+                    // Fila ainda não carregada: busca o CSV primeiro.
+                    fetch(FILA_FALTANTES_CSV_URL).then(function(res) {
+                        if (!res.ok) throw new Error("CSV HTTP " + res.status);
+                        return res.text();
+                    }).then(function(texto) {
+                        var parsed = Papa.parse(texto, { header: true, skipEmptyLines: true });
+                        return aplicar(FilaFaltantes.catalogoDeCsv(parsed.data));
+                    }).catch(function(err) {
+                        alert("Falha ao restaurar: " + (err && err.message ? err.message : "erro"));
+                    });
+                } catch (err) {
+                    alert("Arquivo inválido: " + (err && err.message ? err.message : "erro"));
+                }
+            };
+            reader.onerror = function() { alert("Erro ao ler o arquivo."); };
+            reader.readAsText(file);
         },
 
         filaMarcarFeitoEAvancar: function() {

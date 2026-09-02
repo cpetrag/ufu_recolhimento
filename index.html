@@ -13,8 +13,8 @@
     <script src="config.public.js"></script>
     <script src="api.js"></script>
     <script src="oficio-match.js"></script>
-    <script src="fila-faltantes.js"></script>
-    <script src="app.js?v=fila-1"></script>
+    <script src="fila-faltantes.js?v=fila-3"></script>
+    <script src="app.js?v=fila-3"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -138,8 +138,17 @@
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-violet-600 text-white"
                                 x-on:click="filaAbrirSei()"
                                 x-bind:disabled="!(filaAtual && filaAtual.link)">Abrir no SEI</button>
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-emerald-100 text-emerald-800"
+                                x-on:click="filaExportarProgresso()"
+                                x-bind:disabled="!filaDisponivel">Baixar progresso</button>
+                        <label class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-sky-100 text-sky-800 cursor-pointer">
+                            Restaurar progresso
+                            <input type="file" accept="application/json,.json" class="hidden"
+                                   x-on:change="filaRestaurarProgresso($event)">
+                        </label>
                     </div>
                 </div>
+                <div x-show="filaBackupMsg" class="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg p-2 font-bold" x-text="filaBackupMsg"></div>
                 <div x-show="filaErro" class="text-xs text-red-700 font-bold" x-text="filaErro"></div>
                 <div x-show="filaAtual" class="rounded-lg bg-violet-50 border border-violet-100 p-3 text-xs space-y-1">
                     <p><span class="font-bold text-slate-500 uppercase text-[10px]">SEI</span>

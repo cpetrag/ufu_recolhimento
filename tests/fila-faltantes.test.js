@@ -69,4 +69,23 @@ assert.strictEqual(snapshot.indice_atual, 1);
 assert.ok(snapshot.atualizado_em);
 assert.strictEqual(snapshot.itens.length, 2);
 
+var arquivo = {
+  itens: [
+    { sei: "23117.000116/2026-84", status: "feito", atualizado_em: "2026-09-10T00:00:00.000Z" }
+  ]
+};
+var m3 = Fila.mergeComArquivo(catalogo, [], { itens: [] }, arquivo);
+assert.strictEqual(m3[0].status, "feito");
+assert.strictEqual(m3[1].status, "pendente");
+
+var backup = Fila.montarBackup(m3, 0);
+assert.strictEqual(backup.tipo, "ufu_fila_faltantes");
+assert.strictEqual(backup.version, 1);
+assert.strictEqual(backup.itens.length, 1);
+assert.strictEqual(backup.itens[0].sei, "23117.000116/2026-84");
+
+var parsed = Fila.parseBackup(JSON.stringify(backup));
+assert.strictEqual(parsed.itens.length, 1);
+assert.throws(function () { Fila.parseBackup({ tipo: "outro", version: 1, itens: [] }); });
+
 console.log("fila-faltantes tests OK");

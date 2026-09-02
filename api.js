@@ -388,6 +388,19 @@ function upsertFilaFaltante(row) {
     });
 }
 
+function upsertFilaFaltantesLote(rows) {
+    var payloads = (rows || []).map(function (row) {
+        return {
+            sei: String(row.sei || "").trim(),
+            status: row.status === "feito" ? "feito" : "pendente",
+            atualizado_em: row.atualizado_em || new Date().toISOString(),
+            processo_id: row.processo_id || null
+        };
+    }).filter(function (r) { return !!r.sei; });
+    if (!payloads.length) return Promise.resolve(0);
+    return _upsertEmLotes("fila_faltantes", payloads, "sei");
+}
+
 // =============================================
 // EXPORTAR
 // =============================================
@@ -408,5 +421,6 @@ window.API = {
     restaurarBackupCompleto: restaurarBackupCompleto,
     listarFilaFaltantes: listarFilaFaltantes,
     upsertFilaFaltante: upsertFilaFaltante,
+    upsertFilaFaltantesLote: upsertFilaFaltantesLote,
     BACKUP_VERSION: BACKUP_VERSION
 };

@@ -40,22 +40,81 @@
     return map;
   }
 
+  function aplicarChosen(base, chosen) {
+    return {
+      sei: base.sei,
+      idProcedimento: base.idProcedimento,
+      especificacao: base.especificacao,
+      etiqueta: base.etiqueta,
+      link: base.link,
+      status: chosen && chosen.status === "feito" ? "feito" : "pendente",
+      atualizado_em: chosen ? chosen.atualizado_em : null,
+      processo_id: chosen && chosen.processo_id ? chosen.processo_id : null
+    };
+  }
+
   function mergeProgresso(catalogo, remotoRows, localSnapshot) {
     var remoto = indexBySei(remotoRows || []);
     var localItens = indexBySei(localSnapshot && localSnapshot.itens ? localSnapshot.itens : []);
     return (catalogo || []).map(function (base) {
-      var chosen = pickMaisRecente(remoto[base.sei], localItens[base.sei]);
-      return {
-        sei: base.sei,
-        idProcedimento: base.idProcedimento,
-        especificacao: base.especificacao,
-        etiqueta: base.etiqueta,
-        link: base.link,
-        status: chosen && chosen.status === "feito" ? "feito" : "pendente",
-        atualizado_em: chosen ? chosen.atualizado_em : null,
-        processo_id: chosen && chosen.processo_id ? chosen.processo_id : null
-      };
+      return aplicarChosen(base, pickMaisRecente(remoto[base.sei], localItens[base.sei]));
     });
+  }
+
+  // Mescla catálogo com remoto + local + arquivo de backup (vence o atualizado_em mais recente).
+  function mergeComArquivo(catalogo, remotoRows, localSnapshot, arquivoSnapshot) {
+    var remoto = indexBySei(remotoRows || []);
+    var localItens = indexBySei(localSnapshot && localSnapshot.itens ? localSnapshot.itens : []);
+    var arquivoItens = indexBySei(arquivoSnapshot && arquivoSnapshot.itens ? arquivoSnapshot.itens : []);
+    return (catalogo || []).map(function (base) {
+      var chosen = pickMaisRecente(
+        pickMaisRecente(remoto[base.sei], localItens[base.sei]),
+        arquivoItens[base.sei]
+      );
+      return aplicarChosen(base, chosen);
+    });
+  }
+
+  function montarBackup(lista, indiceAtual) {
+    return {
+      tipo: "ufu_fila_faltantes",
+      version: 1,
+      gerado_em: new Date().toISOString(),
+      indice_atual: typeof indiceAtual === "number" ? indiceAtual : 0,
+      itens: (lista || []).map(function (i) {
+        return {
+          sei: i.sei,
+          status: i.status === "feito" ? "feito" : "pendente",
+          atualizado_em: i.atualizado_em || null,
+          processo_id: i.processo_id || null
+        };
+      }).filter(function (i) {
+        return !!i.sei && (i.status === "feito" || !!i.atualizado_em);
+      })
+    };
+  }
+
+  function parseBackup(raw) {
+    var data = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!data || data.tipo !== "ufu_fila_faltantes") {
+      throw new Error("Arquivo não é um backup da fila de faltantes.");
+    }
+    if (!data.version) throw new Error("Backup sem versão.");
+    if (!Array.isArray(data.itens)) throw new Error("Backup sem lista de itens.");
+    return {
+      tipo: data.tipo,
+      version: data.version,
+      gerado_em: data.gerado_em || null,
+      indice_atual: typeof data.indice_atual === "number" ? data.indice_atual : 0,
+      itens: data.itens.map(function (i) {
+        return {
+          sei: String(i.sei || "").trim(),
+          status: i.status === "feito" ? "feito" : "pendente",
+          atualizado_em: i.atualizado_em || null,
+          processo_id: i.processo_id || null
+        };
+      }).filter(function (i) { return !!i.sei; })
+    };
   }
 
   function contarFeitos(lista) {
@@ -114,6 +173,9 @@
     STORAGE_KEY: STORAGE_KEY,
     catalogoDeCsv: catalogoDeCsv,
     mergeProgresso: mergeProgresso,
+    mergeComArquivo: mergeComArquivo,
+    montarBackup: montarBackup,
+    parseBackup: parseBackup,
     contarFeitos: contarFeitos,
     indicePrimeiroPendente: indicePrimeiroPendente,
     indiceProximoPendente: indiceProximoPendente,
