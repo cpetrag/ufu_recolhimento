@@ -1101,7 +1101,9 @@ Definir no painel Netlify → **Project configuration → Environment variables*
 | `SUPABASE_SERVICE_KEY` | `service_role` key do Supabase | **✅ SIM** |
 | `POWER_AUTOMATE_BACKUP_URL` | URL HTTP do trigger do flow no Power Automate | Opcional |
 | `POWER_AUTOMATE_URL` | URL do flow de envio de itens individuais (já existia) | Opcional |
-| `ALLOWED_ORIGIN` | `https://cpetrag.github.io` (apenas origin, **sem path nem barra final**) | Não |
+| `ALLOWED_ORIGIN` | `https://cpetrag.github.io` (apenas origin, **sem path nem barra final**). Usada por `enviar-sharepoint`, `backup-diario` e `extrair-oficio` (CORS). | Não |
+| `OPENAI_API_KEY` | Chave da API OpenAI para extração de ofícios (`extrair-oficio`) | **✅ SIM** |
+| `OPENAI_MODEL` | Modelo OpenAI (padrão: `gpt-4o-mini`) | Não |
 | `BACKUP_TRIGGER_TOKEN` | Token Bearer opcional para proteger contra disparo indevido | Opcional |
 
 > ⚠️ **Atenção:** a `SUPABASE_SERVICE_KEY` tem permissão total no banco. **Nunca** colocar em `config.js`, no `config.public.js`, em qualquer arquivo do front-end ou em chat público.

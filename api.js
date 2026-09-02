@@ -5,6 +5,17 @@ var APP_CONFIG = window.APP_CONFIG || {};
 var SUPABASE_URL = APP_CONFIG.SUPABASE_URL || "";
 var SUPABASE_KEY = APP_CONFIG.SUPABASE_KEY || "";
 var SHAREPOINT_PROXY_URL = APP_CONFIG.SHAREPOINT_PROXY_URL || "";
+// Em localhost (Netlify Dev) usa path relativo; em produção usa a URL absoluta do config.
+var EXTRAIR_OFICIO_URL = (function () {
+    var configured = APP_CONFIG.EXTRAIR_OFICIO_URL || "";
+    if (typeof location !== "undefined") {
+        var host = location.hostname || "";
+        if (host === "localhost" || host === "127.0.0.1") {
+            return "/.netlify/functions/extrair-oficio";
+        }
+    }
+    return configured || "/.netlify/functions/extrair-oficio";
+})();
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Configuração ausente: defina SUPABASE_URL e SUPABASE_KEY em window.APP_CONFIG.");
@@ -100,10 +111,10 @@ function salvarItem(item, processoId) {
     var registro = {
         patrimonio: item.patrimonio,
         descricao: item.descricao,
-        tamanho: item.tamanho,
+        tamanho: item.tamanho ? item.tamanho : null,
         viavel: item.viavel,
         bvm: item.bvm,
-        foto: item.foto,
+        foto: item.foto || "",
         processo_id: processoId,
         avaliacao: item.avaliacao || null,
         avaliado_em: item.avaliacao ? new Date().toISOString() : null
@@ -218,6 +229,27 @@ function enviarParaSharePoint(processo, itens) {
             resultados.push(Object.assign({ patrimonio: item.patrimonio }, r));
         });
     })).then(function() { return resultados; });
+}
+
+// =============================================
+// EXTRAIR OFÍCIO
+// =============================================
+function extrairOficio(texto) {
+    if (!EXTRAIR_OFICIO_URL) {
+        return Promise.reject(new Error("EXTRAIR_OFICIO_URL não configurada."));
+    }
+    return fetch(EXTRAIR_OFICIO_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto: texto })
+    }).then(function (res) {
+        return res.json().then(function (body) {
+            if (!res.ok || !body || body.ok === false) {
+                throw new Error((body && body.error) || ("Falha ao extrair ofício: HTTP " + res.status));
+            }
+            return body.data;
+        });
+    });
 }
 
 // =============================================
@@ -336,6 +368,26 @@ function restaurarBackupCompleto(backup) {
         });
 }
 
+function listarFilaFaltantes() {
+    return db.from("fila_faltantes").select("sei,status,atualizado_em,processo_id").then(function (r) {
+        if (r.error) throw r.error;
+        return r.data || [];
+    });
+}
+
+function upsertFilaFaltante(row) {
+    var payload = {
+        sei: String(row.sei || "").trim(),
+        status: row.status === "feito" ? "feito" : "pendente",
+        atualizado_em: row.atualizado_em || new Date().toISOString(),
+        processo_id: row.processo_id || null
+    };
+    return db.from("fila_faltantes").upsert([payload], { onConflict: "sei" }).select().single().then(function (r) {
+        if (r.error) throw r.error;
+        return r.data;
+    });
+}
+
 // =============================================
 // EXPORTAR
 // =============================================
@@ -350,8 +402,11 @@ window.API = {
     editarItem: editarItem, excluirItem: excluirItem, excluirProcesso: excluirProcesso,
     listarProcessos: listarProcessos,
     enviarItemSharePoint: enviarItemSharePoint, enviarParaSharePoint: enviarParaSharePoint,
+    extrairOficio: extrairOficio,
     exportarBackupCompleto: exportarBackupCompleto,
     obterEstatisticasBackup: obterEstatisticasBackup,
     restaurarBackupCompleto: restaurarBackupCompleto,
+    listarFilaFaltantes: listarFilaFaltantes,
+    upsertFilaFaltante: upsertFilaFaltante,
     BACKUP_VERSION: BACKUP_VERSION
 };
