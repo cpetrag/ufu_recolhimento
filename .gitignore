@@ -1,7 +1,13 @@
 config.js
+.env
+.env.*
+!.env.example
 
 base.csv
 
 .superpowers/
 
 .worktrees/
+
+# Local Netlify folder
+.netlify

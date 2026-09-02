@@ -5,7 +5,17 @@ var APP_CONFIG = window.APP_CONFIG || {};
 var SUPABASE_URL = APP_CONFIG.SUPABASE_URL || "";
 var SUPABASE_KEY = APP_CONFIG.SUPABASE_KEY || "";
 var SHAREPOINT_PROXY_URL = APP_CONFIG.SHAREPOINT_PROXY_URL || "";
-var EXTRAIR_OFICIO_URL = APP_CONFIG.EXTRAIR_OFICIO_URL || "";
+// Em localhost (Netlify Dev) usa path relativo; em produção usa a URL absoluta do config.
+var EXTRAIR_OFICIO_URL = (function () {
+    var configured = APP_CONFIG.EXTRAIR_OFICIO_URL || "";
+    if (typeof location !== "undefined") {
+        var host = location.hostname || "";
+        if (host === "localhost" || host === "127.0.0.1") {
+            return "/.netlify/functions/extrair-oficio";
+        }
+    }
+    return configured || "/.netlify/functions/extrair-oficio";
+})();
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
     throw new Error("Configuração ausente: defina SUPABASE_URL e SUPABASE_KEY em window.APP_CONFIG.");
