@@ -13,8 +13,8 @@
     <script src="config.public.js"></script>
     <script src="api.js"></script>
     <script src="oficio-match.js"></script>
-    <script src="fila-faltantes.js?v=fila-3"></script>
-    <script src="app.js?v=fila-3"></script>
+    <script src="fila-faltantes.js?v=fila-4"></script>
+    <script src="app.js?v=fila-4"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -135,6 +135,10 @@
                                 x-on:click="filaProximo()" x-bind:disabled="filaIndice >= filaFaltantes.length - 1">Próximo</button>
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-amber-100 text-amber-800"
                                 x-on:click="filaPular()">Pular</button>
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-rose-600 text-white"
+                                x-on:click="filaMarcarRecolhido()"
+                                x-bind:disabled="!(filaAtual && filaAtual.status !== 'feito')"
+                                title="Marca como já recolhido, cria/atualiza no sistema e pula o cadastro">Recolhido</button>
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-violet-600 text-white"
                                 x-on:click="filaAbrirSei()"
                                 x-bind:disabled="!(filaAtual && filaAtual.link)">Abrir no SEI</button>
@@ -159,8 +163,10 @@
                        <span class="ml-2 text-slate-700" x-text="filaAtual.etiqueta"></span></p>
                     <p><span class="font-bold text-slate-500 uppercase text-[10px]">Status</span>
                        <span class="ml-2 font-bold"
-                             x-bind:class="filaAtual.status === 'feito' ? 'text-emerald-700' : 'text-amber-700'"
-                             x-text="filaAtual.status === 'feito' ? 'feito' : (oficioPasso > 1 ? 'em andamento' : 'pendente')"></span></p>
+                             x-bind:class="filaAtual.status === 'feito' ? (filaAtual.motivo === 'recolhido' ? 'text-rose-700' : 'text-emerald-700') : 'text-amber-700'"
+                             x-text="filaAtual.status === 'feito'
+                               ? (filaAtual.motivo === 'recolhido' ? 'recolhido' : 'feito')
+                               : (oficioPasso > 1 ? 'em andamento' : 'pendente')"></span></p>
                 </div>
             </div>
 
@@ -878,6 +884,10 @@
                         <input type="checkbox" class="accent-violet-600 w-4 h-4" x-model="processosFiltroSemFoto">
                         📷 Com itens sem foto
                     </label>
+                    <label class="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap cursor-pointer select-none" title="Por padrão, processos marcados como recolhido ficam fora dos relatórios">
+                        <input type="checkbox" class="accent-rose-600 w-4 h-4" x-model="processosIncluirRecolhidos">
+                        Incluir recolhidos
+                    </label>
                 </div>
                 <p class="text-[10px] text-slate-400" x-text="processosFiltrados.length + ' processo(s) | ' + selecionados.length + ' selecionado(s)'"></p>
 
@@ -943,15 +953,18 @@
                             <div class="flex-1 min-w-0">
                                 <div class="flex items-start justify-between gap-2 mb-1">
                                     <span class="font-mono font-bold text-sm text-slate-800 break-all" x-text="p.sei"></span>
-                                    <span class="text-[9px] font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0"
-                                          x-bind:class="{
-                                            'bg-emerald-100 text-emerald-700': p.status_envio === 'completo',
-                                            'bg-amber-100 text-amber-700': p.status_envio === 'parcial',
-                                            'bg-red-100 text-red-600': p.status_envio === 'pendente',
-                                            'bg-slate-100 text-slate-500': p.status_envio === 'vazio'
-                                          }"
-                                          x-text="p.status_envio === 'completo' ? '✓ SharePoint OK' : p.status_envio === 'parcial' ? '⚡ Parcial' : p.status_envio === 'pendente' ? '⏳ Pendente' : '— Sem itens'">
-                                    </span>
+                                    <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                                        <span x-show="p.recolhido" class="text-[9px] font-bold uppercase px-2 py-1 rounded-full bg-rose-100 text-rose-700">Recolhido</span>
+                                        <span class="text-[9px] font-bold uppercase px-2 py-1 rounded-full whitespace-nowrap"
+                                              x-bind:class="{
+                                                'bg-emerald-100 text-emerald-700': p.status_envio === 'completo',
+                                                'bg-amber-100 text-amber-700': p.status_envio === 'parcial',
+                                                'bg-red-100 text-red-600': p.status_envio === 'pendente',
+                                                'bg-slate-100 text-slate-500': p.status_envio === 'vazio'
+                                              }"
+                                              x-text="p.status_envio === 'completo' ? '✓ SharePoint OK' : p.status_envio === 'parcial' ? '⚡ Parcial' : p.status_envio === 'pendente' ? '⏳ Pendente' : '— Sem itens'">
+                                        </span>
+                                    </div>
                                 </div>
                                 <p class="text-xs text-slate-500 truncate" x-text="p.pro_reitoria_unidade"></p>
                                 <p class="text-xs text-slate-400 truncate" x-text="'Sala: ' + (p.sala || '—')"></p>

@@ -96,6 +96,9 @@ function salvarProcesso(processo) {
         bloco_id: processo.bloco_id || null,
         sala: processo.sala
     };
+    if (typeof processo.recolhido === "boolean") {
+        row.recolhido = processo.recolhido;
+    }
     if (processo.id) {
         return db.from("processos").update(row).eq("id", processo.id).select().single().then(function(r) {
             if (r.error) throw r.error;
@@ -105,6 +108,32 @@ function salvarProcesso(processo) {
     return db.from("processos").upsert([row], { onConflict: "sei" }).select().single().then(function(r) {
         if (r.error) throw r.error;
         return r.data;
+    });
+}
+
+/** Cria ou atualiza processo com flag recolhido=true (cadastro mínimo se novo). */
+function marcarProcessoRecolhido(sei) {
+    var seiNorm = String(sei || "").trim();
+    if (!seiNorm) return Promise.reject(new Error("SEI inválido."));
+    return buscarProcessoPorSEI(seiNorm).then(function (existente) {
+        if (existente && existente.id) {
+            return db.from("processos").update({ recolhido: true }).eq("id", existente.id).select().single().then(function (r) {
+                if (r.error) throw r.error;
+                return r.data;
+            });
+        }
+        var row = {
+            sei: seiNorm,
+            pro_reitoria_unidade: "RECOLHIDO (sem cadastro completo)",
+            campus_id: null,
+            bloco_id: null,
+            sala: "—",
+            recolhido: true
+        };
+        return db.from("processos").upsert([row], { onConflict: "sei" }).select().single().then(function (r) {
+            if (r.error) throw r.error;
+            return r.data;
+        });
     });
 }
 function salvarItem(item, processoId) {
@@ -369,7 +398,7 @@ function restaurarBackupCompleto(backup) {
 }
 
 function listarFilaFaltantes() {
-    return db.from("fila_faltantes").select("sei,status,atualizado_em,processo_id").then(function (r) {
+    return db.from("fila_faltantes").select("sei,status,atualizado_em,processo_id,motivo").then(function (r) {
         if (r.error) throw r.error;
         return r.data || [];
     });
@@ -380,7 +409,8 @@ function upsertFilaFaltante(row) {
         sei: String(row.sei || "").trim(),
         status: row.status === "feito" ? "feito" : "pendente",
         atualizado_em: row.atualizado_em || new Date().toISOString(),
-        processo_id: row.processo_id || null
+        processo_id: row.processo_id || null,
+        motivo: row.motivo || null
     };
     return db.from("fila_faltantes").upsert([payload], { onConflict: "sei" }).select().single().then(function (r) {
         if (r.error) throw r.error;
@@ -394,7 +424,8 @@ function upsertFilaFaltantesLote(rows) {
             sei: String(row.sei || "").trim(),
             status: row.status === "feito" ? "feito" : "pendente",
             atualizado_em: row.atualizado_em || new Date().toISOString(),
-            processo_id: row.processo_id || null
+            processo_id: row.processo_id || null,
+            motivo: row.motivo || null
         };
     }).filter(function (r) { return !!r.sei; });
     if (!payloads.length) return Promise.resolve(0);
@@ -412,6 +443,7 @@ window.API = {
     itemSemFoto: itemSemFoto,
     carregarItensProcesso: carregarItensProcesso, carregarItensProcessoCompleto: carregarItensProcessoCompleto,
     salvarProcesso: salvarProcesso, salvarItem: salvarItem,
+    marcarProcessoRecolhido: marcarProcessoRecolhido,
     editarItem: editarItem, excluirItem: excluirItem, excluirProcesso: excluirProcesso,
     listarProcessos: listarProcessos,
     enviarItemSharePoint: enviarItemSharePoint, enviarParaSharePoint: enviarParaSharePoint,

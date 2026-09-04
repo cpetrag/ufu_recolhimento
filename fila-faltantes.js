@@ -15,7 +15,8 @@
         link: String(r.Link_Permanente || r.link || "").trim(),
         status: "pendente",
         atualizado_em: null,
-        processo_id: null
+        processo_id: null,
+        motivo: null
       };
     }).filter(function (item) { return !!item.sei; });
   }
@@ -49,7 +50,8 @@
       link: base.link,
       status: chosen && chosen.status === "feito" ? "feito" : "pendente",
       atualizado_em: chosen ? chosen.atualizado_em : null,
-      processo_id: chosen && chosen.processo_id ? chosen.processo_id : null
+      processo_id: chosen && chosen.processo_id ? chosen.processo_id : null,
+      motivo: chosen && chosen.motivo ? chosen.motivo : null
     };
   }
 
@@ -86,7 +88,8 @@
           sei: i.sei,
           status: i.status === "feito" ? "feito" : "pendente",
           atualizado_em: i.atualizado_em || null,
-          processo_id: i.processo_id || null
+          processo_id: i.processo_id || null,
+          motivo: i.motivo || null
         };
       }).filter(function (i) {
         return !!i.sei && (i.status === "feito" || !!i.atualizado_em);
@@ -111,7 +114,8 @@
           sei: String(i.sei || "").trim(),
           status: i.status === "feito" ? "feito" : "pendente",
           atualizado_em: i.atualizado_em || null,
-          processo_id: i.processo_id || null
+          processo_id: i.processo_id || null,
+          motivo: i.motivo || null
         };
       }).filter(function (i) { return !!i.sei; })
     };
@@ -149,7 +153,8 @@
           sei: i.sei,
           status: i.status,
           atualizado_em: i.atualizado_em,
-          processo_id: i.processo_id || null
+          processo_id: i.processo_id || null,
+          motivo: i.motivo || null
         };
       })
     };

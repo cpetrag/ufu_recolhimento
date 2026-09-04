@@ -57,6 +57,7 @@ function app() {
         processosList: [], processosCarregando: false, processosErro: null,
         processosFiltro: "", processosFiltroAno: "", processosFiltroSemFoto: false,
         processosFiltroItensMin: "", processosFiltroItensMax: "", processosAnos: [],
+        processosIncluirRecolhidos: false,
         itensFiltroSemFoto: false,
 
         // ── seleção múltipla ──────────────────────────
@@ -946,11 +947,13 @@ function app() {
             var f      = (this.processosFiltro    || "").toLowerCase().trim();
             var ano    = (this.processosFiltroAno || "").trim();
             var semFoto = this.processosFiltroSemFoto;
+            var incluirRecolhidos = this.processosIncluirRecolhidos;
             var itensMin = (this.processosFiltroItensMin || "").trim();
             var itensMax = (this.processosFiltroItensMax || "").trim();
             var minNum = itensMin !== "" ? parseInt(itensMin, 10) : null;
             var maxNum = itensMax !== "" ? parseInt(itensMax, 10) : null;
             return this.processosList.filter(function(p) {
+                if (!incluirRecolhidos && p.recolhido) return false;
                 var passaTexto = !f || (
                     (p.sei || "").toLowerCase().includes(f) ||
                     (p.pro_reitoria_unidade || "").toLowerCase().includes(f) ||
@@ -1296,6 +1299,7 @@ function app() {
         },
 
         // Se o SEI do card já existe em `processos`: avisa, marca Feito e abre na aba Itens.
+        // Se já estiver `recolhido`, só marca a fila e avança (sem abrir Itens).
         filaChecarSeJaExisteNoSistema: function() {
             var self = this;
             var card = this.filaAtual;
@@ -1305,6 +1309,14 @@ function app() {
             return API.buscarProcessoPorSEI(sei).then(function(proc) {
                 if (!proc) return;
                 if (!self.filaAtual || !FilaFaltantes.seiIguais(self.filaAtual.sei, sei)) return;
+                if (proc.recolhido) {
+                    alert("SEI " + sei + " já está marcado como RECOLHIDO no sistema.\nMarcando Feito na fila e avançando.");
+                    return self.filaConcluirCardAtual({
+                        processoId: proc.id,
+                        motivo: "recolhido",
+                        abrirProcesso: null
+                    });
+                }
                 return API.carregarItensProcesso(proc.id).then(function(itens) {
                     if (!self.filaAtual || !FilaFaltantes.seiIguais(self.filaAtual.sei, sei)) return;
                     var n = (itens || []).length;
@@ -1312,32 +1324,77 @@ function app() {
                         "SEI " + sei + " já está no sistema (" + n + " item" + (n === 1 ? "" : "s") + ").\n" +
                         "Abrindo o processo e marcando como Feito na fila."
                     );
-                    var agora = new Date().toISOString();
-                    card.status = "feito";
-                    card.atualizado_em = agora;
-                    card.processo_id = proc.id;
-                    self.filaPersistirLocal();
-                    return API.upsertFilaFaltante({
-                        sei: card.sei,
-                        status: "feito",
-                        atualizado_em: agora,
-                        processo_id: proc.id
-                    }).catch(function(err) {
-                        console.warn("fila_faltantes sync falhou; mantido no localStorage", err);
-                    }).then(function() {
-                        var next = FilaFaltantes.indiceProximoPendente(self.filaFaltantes, self.filaIndice);
-                        if (next < 0) next = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
-                        if (next >= 0) {
-                            self.filaIndice = next;
-                            self.filaPersistirLocal();
-                            self.oficioReset();
-                            self.filaAplicarCardAoOficio();
-                        }
-                        self._carregarProcesso(proc, { aba: "itens" });
+                    return self.filaConcluirCardAtual({
+                        processoId: proc.id,
+                        motivo: null,
+                        abrirProcesso: proc
                     });
                 });
             }).catch(function() {
                 // Sem rede / tabela — segue o fluxo Ofício normalmente.
+            });
+        },
+
+        /** Marca o card atual como feito na fila, sync, avança. opts: processoId, motivo, abrirProcesso */
+        filaConcluirCardAtual: function(opts) {
+            var self = this;
+            opts = opts || {};
+            var card = this.filaAtual;
+            if (!card || typeof FilaFaltantes === "undefined") return Promise.resolve();
+            var agora = new Date().toISOString();
+            card.status = "feito";
+            card.atualizado_em = agora;
+            card.processo_id = opts.processoId || card.processo_id || null;
+            card.motivo = opts.motivo || null;
+            this.filaPersistirLocal();
+            return API.upsertFilaFaltante({
+                sei: card.sei,
+                status: "feito",
+                atualizado_em: agora,
+                processo_id: card.processo_id,
+                motivo: card.motivo
+            }).catch(function(err) {
+                console.warn("fila_faltantes sync falhou; mantido no localStorage", err);
+            }).then(function() {
+                var next = FilaFaltantes.indiceProximoPendente(self.filaFaltantes, self.filaIndice);
+                if (next < 0) next = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
+                self.oficioReset();
+                if (next >= 0) {
+                    self.filaIndice = next;
+                    self.filaPersistirLocal();
+                    self.filaAplicarCardAoOficio();
+                } else {
+                    self.filaIndice = Math.min(self.filaIndice, Math.max(0, self.filaFaltantes.length - 1));
+                    self.filaPersistirLocal();
+                    self.oficioPasso = 4;
+                }
+                if (opts.abrirProcesso) {
+                    self._carregarProcesso(opts.abrirProcesso, { aba: "itens" });
+                } else if (next >= 0) {
+                    self.filaChecarSeJaExisteNoSistema();
+                }
+            });
+        },
+
+        filaMarcarRecolhido: function() {
+            var self = this;
+            var card = this.filaAtual;
+            if (!card) return;
+            if (!confirm("Marcar SEI " + card.sei + " como RECOLHIDO?\n\nCria/atualiza o processo no sistema com a flag recolhido e pula o cadastro na fila.")) {
+                return;
+            }
+            this.filaBackupMsg = null;
+            API.marcarProcessoRecolhido(card.sei).then(function(proc) {
+                return self.filaConcluirCardAtual({
+                    processoId: proc && proc.id,
+                    motivo: "recolhido",
+                    abrirProcesso: null
+                }).then(function() {
+                    self.filaBackupMsg = "Marcado como recolhido: " + card.sei;
+                });
+            }).catch(function(err) {
+                alert("Falha ao marcar recolhido: " + (err && err.message ? err.message : "erro") +
+                    "\nConfira se rodou o SQL docs/sql/processos_recolhido.sql no Supabase.");
             });
         },
 
@@ -1546,7 +1603,6 @@ function app() {
         },
 
         filaMarcarFeitoEAvancar: function() {
-            var self = this;
             if (!this.filaDisponivel || typeof FilaFaltantes === "undefined") return Promise.resolve();
             var card = this.filaAtual;
             if (!card) return Promise.resolve();
@@ -1554,33 +1610,13 @@ function app() {
                 alert("SEI do formulário difere do card da fila. Feito automático bloqueado.");
                 return Promise.resolve();
             }
-            var agora = new Date().toISOString();
-            card.status = "feito";
-            card.atualizado_em = agora;
-            card.processo_id = this.processoId || card.processo_id || null;
-            this.filaPersistirLocal();
-            return API.upsertFilaFaltante({
-                sei: card.sei,
-                status: "feito",
-                atualizado_em: agora,
-                processo_id: card.processo_id
+            return this.filaConcluirCardAtual({
+                processoId: this.processoId || card.processo_id || null,
+                motivo: null,
+                abrirProcesso: null
             }).catch(function(err) {
                 console.warn("fila_faltantes sync falhou; mantido no localStorage", err);
                 alert("Progresso salvo neste navegador. Sync com servidor falhou — será retentado ao reabrir a aba.");
-            }).then(function() {
-                // Próximo à frente; se não houver, volta ao primeiro pendente (itens pulados antes).
-                var next = FilaFaltantes.indiceProximoPendente(self.filaFaltantes, self.filaIndice);
-                if (next < 0) next = FilaFaltantes.indicePrimeiroPendente(self.filaFaltantes);
-                self.oficioReset();
-                if (next >= 0) {
-                    self.filaIndice = next;
-                    self.filaPersistirLocal();
-                    self.filaAplicarCardAoOficio();
-                } else {
-                    self.filaIndice = Math.min(self.filaIndice, Math.max(0, self.filaFaltantes.length - 1));
-                    self.filaPersistirLocal();
-                    self.oficioPasso = 4;
-                }
             });
         },
 
