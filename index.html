@@ -14,7 +14,7 @@
     <script src="api.js"></script>
     <script src="oficio-match.js?v=fix-unidade-1"></script>
     <script src="fila-faltantes.js?v=fila-5"></script>
-    <script src="app.js?v=fila-5"></script>
+    <script src="app.js?v=fila-6"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -424,8 +424,9 @@
                             class="bg-slate-200 text-slate-700 p-3 rounded-xl font-bold text-xs"
                             x-on:click="oficioPularItem()">Pular por agora</button>
                     <button type="button"
-                            class="bg-red-50 text-red-700 border border-red-200 p-3 rounded-xl font-bold text-xs"
-                            x-on:click="oficioRemoverDaFila()">Remover da fila</button>
+                            class="bg-red-600 text-white p-3 rounded-xl font-bold text-xs shadow"
+                            x-on:click="oficioRemoverDaFila()"
+                            title="Descarta este item (não salva no processo)">🗑 Apagar item</button>
                 </div>
             </div>
 
@@ -672,12 +673,15 @@
                             </div>
                             <template x-if="itemEditNovaFoto"><p class="text-[10px] text-emerald-600 font-bold mt-1">✓ Foto alterada</p></template>
                         </div>
-                        <div class="flex gap-2">
-                            <button class="flex-1 bg-blue-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="salvarItemEmEdicaoAtual()" x-bind:disabled="loading">
+                        <div class="flex flex-wrap gap-2">
+                            <button class="flex-1 min-w-[30%] bg-blue-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="salvarItemEmEdicaoAtual()" x-bind:disabled="loading">
                                 <span x-text="loading ? 'Salvando...' : 'Salvar agora'"></span>
                             </button>
-                            <button class="flex-1 bg-emerald-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="iniciarInclusaoRapida()">Incluir item</button>
-                            <button class="flex-1 bg-slate-200 text-slate-700 text-sm font-bold py-2 rounded-lg" x-on:click="cancelarEdicaoItem()">Fechar</button>
+                            <button class="flex-1 min-w-[30%] bg-emerald-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="iniciarInclusaoRapida()">Incluir item</button>
+                            <button class="flex-1 min-w-[30%] bg-red-600 text-white text-sm font-bold py-2 rounded-lg"
+                                    x-on:click="excluirItemEmEdicaoRapido()"
+                                    title="Apaga este item do processo (ex.: não existe ou veio por engano)">🗑 Excluir item</button>
+                            <button class="flex-1 min-w-[30%] bg-slate-200 text-slate-700 text-sm font-bold py-2 rounded-lg" x-on:click="cancelarEdicaoItem()">Fechar</button>
                         </div>
                     </div>
                 </div>

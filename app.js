@@ -1879,6 +1879,11 @@ function app() {
 
         oficioRemoverDaFila: function() {
             if (!this.oficioFila.length) return;
+            var cur = this.oficioFila[this.oficioFilaIndex];
+            var rotulo = (cur && (cur.patrimonio || cur.descricao)) || "este item";
+            if (!confirm("Apagar " + rotulo + " da fila?\n\nEle não será salvo no processo (ex.: não existe ou veio por engano).")) {
+                return;
+            }
             this.oficioFila.splice(this.oficioFilaIndex, 1);
             if (this.oficioFila.length === 0) {
                 this.oficioPasso = 4;
