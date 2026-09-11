@@ -12,9 +12,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="config.public.js"></script>
     <script src="api.js"></script>
-    <script src="oficio-match.js"></script>
-    <script src="fila-faltantes.js?v=fila-4"></script>
-    <script src="app.js?v=fila-4"></script>
+    <script src="oficio-match.js?v=fix-unidade-1"></script>
+    <script src="fila-faltantes.js?v=fila-5"></script>
+    <script src="app.js?v=fila-5"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -467,7 +467,7 @@
                 <p x-show="csvCarregado && !csvCarregando" class="text-xs text-slate-500 mb-2">✓ Base em memória (<span x-text="baseCSV.length"></span> itens)</p>
                 <p x-show="csvErro" class="text-xs text-red-600 font-bold mb-2">❌ <span x-text="csvErro"></span> <button type="button" class="underline ml-1" x-on:click="carregarBaseCSV()">Tentar de novo</button></p>
                 <div class="flex gap-2 mb-3 items-center">
-                    <input x-ref="campoPatrimonio" class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="number" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio || !csvCarregado">
+                    <input x-ref="campoPatrimonio" class="flex-1 p-3 border rounded-lg bg-yellow-50 font-bold text-xl outline-none focus:ring-2 focus:ring-yellow-400" placeholder="Nº Patrimônio" type="text" inputmode="numeric" x-model="item.patrimonio" x-on:input.debounce.300ms="buscarPatrimonio()" x-bind:disabled="item.semPatrimonio || !csvCarregado">
                     <label class="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase whitespace-nowrap cursor-pointer bg-red-50 border border-red-200 rounded-lg px-3 py-3">
                         <input type="checkbox" x-model="item.semPatrimonio" x-on:change="if(item.semPatrimonio) { item.patrimonio = 'Sem número'; item.descricao = ''; patrimonioNaoEncontrado = false; $nextTick(function(){ $refs.campoDescricao.focus(); }); } else { item.patrimonio = ''; }"> Sem patrimônio
                     </label>
@@ -977,6 +977,10 @@
                                 <div class="flex gap-2 mt-2">
                                     <button class="flex-1 bg-blue-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="abrirProcessoNaAba(p, true)" title="Abre o processo em nova aba">✏️ Abrir</button>
                                     <button class="flex-1 bg-slate-700 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="exportarPDFProcesso(p)">📄 PDF</button>
+                                    <button x-show="!p.recolhido"
+                                            class="flex-1 bg-rose-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg"
+                                            x-on:click="marcarProcessoComoRecolhido(p)"
+                                            title="Marca como já recolhido (some dos relatórios por padrão)">Recolhido</button>
                                     <button class="flex-1 bg-red-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="excluirProcessoLista(p)">🗑 Excluir</button>
                                 </div>
                             </div>

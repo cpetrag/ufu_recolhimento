@@ -44,8 +44,8 @@
         if (NOMES_GENERICOS[n] && t.length > n.length + 2) score = 15 + n.length;
       }
 
-      // Alias: texto fala de Química / IQUFU → favorece cadastro IQUFU
-      if ((/quimica|iqufu|diriqufu/.test(t) || /quimica|iqufu/.test(n)) && n === "iqufu") {
+      // Alias: só quando o TEXTO buscado fala de Química / IQUFU (nunca pelo nome do cadastro sozinho)
+      if (/quimica|iqufu|diriqufu/.test(t) && (n === "iqufu" || /quimica/.test(n))) {
         score = Math.max(score, 500);
       }
 
@@ -93,20 +93,30 @@
     var ia = String(unidadeTextoIa || "").trim();
     var iaN = normalizar(ia);
 
-    if (/instituto de quimica/.test(iaN) || /instituto de quimica|iqufu|diriqufu/.test(t)) {
-      if (/instituto de quimica/.test(iaN)) return ia;
+    // Preferência Química só com evidência explícita (não confundir outros institutos/faculdades).
+    var iaEQuimica = /instituto de quimica|iqufu|diriqufu/.test(iaN);
+    var textoEQuimica = /instituto de quimica/.test(t) || /(?:^|[^a-z])(?:dir)?iqufu(?:[^a-z]|$)/.test(t);
+    if (iaEQuimica || textoEQuimica) {
+      if (/instituto de quimica/.test(iaN) && ia) return ia;
       var mQuim = String(textoOficio || "").match(/Instituto\s+de\s+Qu[ií]mica/i);
       if (mQuim) return mQuim[0].replace(/\s+/g, " ").trim();
+      if (iaEQuimica && ia && !NOMES_GENERICOS[iaN]) return ia;
       return "Instituto de Química";
     }
 
-    var matched = casarPorNome(ia || textoOficio, lista) || casarUnidadeNoTexto(textoOficio, lista);
+    // 1) Match pelo rótulo da IA (curto). 2) Scan do ofício por nomes da lista.
+    var matched = (ia ? casarPorNome(ia, lista) : null) || casarUnidadeNoTexto(textoOficio, lista);
     if (matched) {
       var mn = normalizar(matched.nome);
-      if (NOMES_GENERICOS[mn] && ia && iaN.length > mn.length) return ia;
+      if (NOMES_GENERICOS[mn] && ia && iaN.length > mn.length && !NOMES_GENERICOS[iaN]) return ia;
       if (NOMES_GENERICOS[mn]) {
         var mInst = String(textoOficio || "").match(/Instituto\s+de\s+[A-Za-zÀ-ú]+(?:\s+(?:de\s+)?[A-Za-zÀ-ú]+){0,3}/i);
         if (mInst) return mInst[0].replace(/\s+/g, " ").trim();
+        if (ia && !NOMES_GENERICOS[iaN]) return ia;
+      }
+      // Se a IA deu um nome mais específico que a sigla do banco, preferir a IA
+      if (ia && iaN.length > mn.length && iaN.indexOf(mn) === -1 && mn.indexOf(iaN) === -1) {
+        return ia;
       }
       return matched.nome;
     }

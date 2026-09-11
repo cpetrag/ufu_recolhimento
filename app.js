@@ -776,7 +776,13 @@ function app() {
 
         salvarItem: function() {
             var self = this;
-            if (!this.item.patrimonio) { alert("Informe o Nº Patrimônio."); return; }
+            if (this.item.semPatrimonio) {
+                this.item.patrimonio = "Sem número";
+            }
+            if (!this.item.semPatrimonio && (!this.item.patrimonio || !String(this.item.patrimonio).trim())) {
+                alert("Informe o Nº Patrimônio.");
+                return;
+            }
             if (this.item.patrimonio !== "Sem número") {
                 var existe = this.itens.some(function(i) { return String(i.patrimonio) === String(self.item.patrimonio); });
                 if (existe) { alert("Este patrimônio já foi cadastrado neste processo."); return; }
@@ -1021,6 +1027,29 @@ function app() {
                     self.itens = [];
                 }
             }).catch(function() { alert("Erro ao excluir processo."); });
+        },
+
+        marcarProcessoComoRecolhido: function(p) {
+            var self = this;
+            if (!p || !p.sei) return;
+            if (!confirm("Marcar processo " + p.sei + " como RECOLHIDO?\n\nEle some dos relatórios por padrão (use \"Incluir recolhidos\" para ver).")) {
+                return;
+            }
+            API.marcarProcessoRecolhido(p.sei).then(function(atualizado) {
+                p.recolhido = true;
+                if (atualizado && atualizado.id) {
+                    self.processosList = self.processosList.map(function(x) {
+                        if (x.id !== atualizado.id) return x;
+                        return Object.assign({}, x, { recolhido: true });
+                    });
+                }
+                if (self.processoId === p.id) {
+                    self.processo = Object.assign({}, self.processo, { recolhido: true });
+                }
+            }).catch(function(err) {
+                alert("Falha ao marcar recolhido: " + (err && err.message ? err.message : "erro") +
+                    "\nConfira se rodou o SQL docs/sql/processos_recolhido.sql no Supabase.");
+            });
         },
 
         // =============================================
@@ -1805,7 +1834,13 @@ function app() {
         oficioConfirmarItem: function() {
             var self = this;
             var f = this.oficioItemForm;
-            if (!f.patrimonio) { alert("Informe o patrimônio."); return; }
+            if (f.semPatrimonio) {
+                f.patrimonio = "Sem número";
+            }
+            if (!f.semPatrimonio && (!f.patrimonio || !String(f.patrimonio).trim())) {
+                alert("Informe o patrimônio.");
+                return;
+            }
             if (!f.descricao || !String(f.descricao).trim()) { alert("Informe a descrição."); return; }
             if (f.patrimonio !== "Sem número") {
                 var existe = this.itens.some(function(i) { return String(i.patrimonio) === String(f.patrimonio); });

@@ -22,7 +22,9 @@ assert.strictEqual(match.casarBloco("1J", "c2", blocos).id, "b2");
 var unidades = [
   { id: "u0", nome: "INSTITUTO" },
   { id: "u1", nome: "IQUFU" },
-  { id: "u2", nome: "FACED" }
+  { id: "u2", nome: "FACED" },
+  { id: "u3", nome: "FACOM" },
+  { id: "u4", nome: "CTIC" }
 ];
 
 var oficioIqufu = "UNIVERSIDADE FEDERAL DE UBERLÂNDIA\nInstituto de Química\nOfício nº 157/2026/DIRIQUFU/IQUFU-UFU";
@@ -35,6 +37,40 @@ assert.strictEqual(
   "Instituto de Química"
 );
 assert.strictEqual(match.casarUnidadeNoTexto(oficioIqufu, unidades).nome, "IQUFU");
+
+// Não forçar IQUFU em outros departamentos
+assert.strictEqual(
+  match.resolverNomeUnidade(
+    "UNIVERSIDADE\nFaculdade de Computacao\nOficio 1/2026/FACOM-UFU",
+    "Faculdade de Computacao",
+    unidades
+  ),
+  "Faculdade de Computacao"
+);
+assert.strictEqual(
+  match.resolverNomeUnidade(
+    "UNIVERSIDADE\nFaculdade de Educacao\nFACED-UFU",
+    "Faculdade de Educacao",
+    unidades
+  ),
+  "Faculdade de Educacao"
+);
+assert.strictEqual(
+  match.resolverNomeUnidade(
+    "UNIVERSIDADE\nInstituto de Fisica\nINFIS-UFU",
+    "Instituto de Fisica",
+    unidades
+  ),
+  "Instituto de Fisica"
+);
+assert.strictEqual(
+  match.casarPorNome("Faculdade de Computacao", unidades),
+  null
+);
+assert.strictEqual(
+  match.casarUnidadeNoTexto("Oficio FACOM-UFU Faculdade", unidades).nome,
+  "FACOM"
+);
 
 var base = [
   { NroPatrimonio: "707657", CodioBarra: "0", DescricaoBem: "NOTEBOOK DA BASE" }
