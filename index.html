@@ -12,9 +12,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="config.public.js"></script>
     <script src="api.js"></script>
-    <script src="oficio-match.js?v=fix-unidade-1"></script>
+    <script src="oficio-match.js?v=sem-pat-1"></script>
     <script src="fila-faltantes.js?v=fila-5"></script>
-    <script src="app.js?v=fila-6"></script>
+    <script src="app.js?v=fila-7"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -424,7 +424,11 @@
                             class="bg-slate-200 text-slate-700 p-3 rounded-xl font-bold text-xs"
                             x-on:click="oficioPularItem()">Pular por agora</button>
                     <button type="button"
-                            class="bg-red-600 text-white p-3 rounded-xl font-bold text-xs shadow"
+                            class="bg-emerald-600 text-white p-3 rounded-xl font-bold text-xs shadow"
+                            x-on:click="oficioAcrescentarItem()"
+                            title="Inclui outro bem neste processo, mesmo sem número de patrimônio">+ Acrescentar item</button>
+                    <button type="button"
+                            class="col-span-2 bg-red-600 text-white p-3 rounded-xl font-bold text-xs shadow"
                             x-on:click="oficioRemoverDaFila()"
                             title="Descarta este item (não salva no processo)">🗑 Apagar item</button>
                 </div>
@@ -541,10 +545,8 @@
                 </div>
                 <div class="flex items-center justify-between gap-2 mb-3">
                     <h3 class="text-[10px] font-bold text-slate-500 uppercase">Itens registrados (<span x-text="itensFiltroSemFoto ? (itensVisiveis.length + ' de ' + itens.length) : itens.length"></span>)</h3>
-                    <button type="button" class="text-[8px] font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-lg shrink-0"
-                            x-on:click="colarFotoDebugVisivel = true; debugColarFoto('painel', 'Debug ativado — app.js?v=colar-debug-1')">
-                        🐛 Debug colar
-                    </button>
+                    <button type="button" class="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-lg shrink-0"
+                            x-on:click="iniciarInclusaoSemPatrimonio()">+ Sem nº</button>
                 </div>
                 <div class="space-y-3">
                     <template x-for="i in itensVisiveis" x-bind:key="i.id">
@@ -678,6 +680,7 @@
                                 <span x-text="loading ? 'Salvando...' : 'Salvar agora'"></span>
                             </button>
                             <button class="flex-1 min-w-[30%] bg-emerald-600 text-white text-sm font-bold py-2 rounded-lg" x-on:click="iniciarInclusaoRapida()">Incluir item</button>
+                            <button class="flex-1 min-w-[30%] bg-emerald-800 text-white text-sm font-bold py-2 rounded-lg" x-on:click="iniciarInclusaoSemPatrimonio()" title="Acrescenta um bem sem número de patrimônio">+ Sem nº</button>
                             <button class="flex-1 min-w-[30%] bg-red-600 text-white text-sm font-bold py-2 rounded-lg"
                                     x-on:click="excluirItemEmEdicaoRapido()"
                                     title="Apaga este item do processo (ex.: não existe ou veio por engano)">🗑 Excluir item</button>

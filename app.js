@@ -677,6 +677,7 @@ function app() {
         iniciarInclusaoRapida: function() {
             this.itemEditando = null;
             this.itemEditAutoStatus = "";
+            this.item.semPatrimonio = false;
             if (this._itemEditAutoSaveTimer) {
                 clearTimeout(this._itemEditAutoSaveTimer);
                 this._itemEditAutoSaveTimer = null;
@@ -686,6 +687,26 @@ function app() {
                 if (self.$refs && self.$refs.campoPatrimonio) self.$refs.campoPatrimonio.focus();
             });
             this.mostrarAtalhoToast("Modo inclusão");
+        },
+
+        iniciarInclusaoSemPatrimonio: function() {
+            this.itemEditando = null;
+            this.itemEditAutoStatus = "";
+            this.item.semPatrimonio = true;
+            this.item.patrimonio = "Sem número";
+            this.item.descricao = "";
+            this.patrimonioNaoEncontrado = false;
+            if (this._itemEditAutoSaveTimer) {
+                clearTimeout(this._itemEditAutoSaveTimer);
+                this._itemEditAutoSaveTimer = null;
+            }
+            var self = this;
+            this.$nextTick(function() {
+                var el = self.$refs && self.$refs.campoDescricao;
+                if (el && el.focus) el.focus();
+                if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            });
+            this.mostrarAtalhoToast("Item sem número");
         },
 
         excluirItemEmEdicaoRapido: function() {
@@ -1695,8 +1716,10 @@ function app() {
                     if (bloco) self.oficioProcesso.bloco_id = bloco.id;
                     var fila = (data.itens || []).map(function(it) {
                         return OficioMatch.enriquecerItem(it, self.baseCSV);
+                    }).filter(function(f) {
+                        return !!(f.semPatrimonio || String(f.patrimonio || "").trim() || String(f.descricao || "").trim());
                     });
-                    if (fila.length === 0 && data.sala_texto) {
+                    if (fila.length === 0 && (data.sala_texto || texto)) {
                         // Sem patrimônio: cria um item genérico a partir do texto do ofício.
                         fila.push(OficioMatch.enriquecerItem({ patrimonio: "", descricao: texto.slice(0, 280), tamanho_sugerido: "" }, self.baseCSV));
                         fila[0].semPatrimonio = true;
@@ -1757,7 +1780,8 @@ function app() {
                     var existentes = {};
                     itens.forEach(function(i) { existentes[String(i.patrimonio)] = true; });
                     self.oficioFila = self.oficioFila.filter(function(f) {
-                        if (f.semPatrimonio || f.patrimonio === "Sem número") return true;
+                        // Vários bens podem não ter plaqueta: não descartar por já existir um "Sem número".
+                        if (f.semPatrimonio || OficioMatch.ehSemPatrimonio(f.patrimonio)) return true;
                         return !existentes[String(f.patrimonio)];
                     });
                     self.oficioConfirmados = 0;
@@ -1866,6 +1890,23 @@ function app() {
                 self.loading = false;
                 alert("Erro ao salvar item: " + (err && err.message ? err.message : ""));
             });
+        },
+
+        oficioAcrescentarItem: function() {
+            this.oficioFila.push({
+                patrimonio: "Sem número",
+                descricao: "",
+                tamanho: "",
+                viavel: false,
+                bvm: false,
+                foto: "",
+                avaliacao: "",
+                semPatrimonio: true,
+                naBase: false
+            });
+            this.oficioFilaIndex = this.oficioFila.length - 1;
+            this.oficioPasso = 3;
+            this.oficioCarregarItemAtual();
         },
 
         oficioPularItem: function() {

@@ -83,4 +83,11 @@ var enr2 = match.enriquecerItem({ patrimonio: "999", descricao: "mesa" }, base);
 assert.strictEqual(enr2.descricao, "mesa");
 assert.strictEqual(enr2.naBase, false);
 
+var enrSem = match.enriquecerItem({ patrimonio: "", descricao: "cadeira sem plaqueta" }, base);
+assert.strictEqual(enrSem.semPatrimonio, true);
+assert.strictEqual(enrSem.patrimonio, "Sem número");
+assert.strictEqual(enrSem.descricao, "cadeira sem plaqueta");
+assert.strictEqual(match.ehSemPatrimonio("sem patrimônio"), true);
+assert.strictEqual(match.ehSemPatrimonio("707657"), false);
+
 console.log("oficio-match tests OK");

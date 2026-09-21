@@ -142,17 +142,31 @@
     }) || null;
   }
 
+  function ehSemPatrimonio(valor) {
+    var bruto = String(valor == null ? "" : valor).trim();
+    if (!bruto) return true;
+    var n = normalizar(bruto);
+    if (/^(sem numero|sem nro|sem patrimonio|s\/n|sn|n\/a|na|null|undefined|nao informado|nao possui|sem plaqueta|-|—)$/.test(n)) {
+      return true;
+    }
+    // "sem patrimônio", "sem nº", etc., desde que não venha um número de bem junto
+    if (/^sem\b/.test(n) && !/\d{4,}/.test(bruto)) return true;
+    return false;
+  }
+
   function enriquecerItem(item, baseCSV) {
-    var achado = acharNaBase(item.patrimonio, baseCSV);
+    var sem = ehSemPatrimonio(item && item.patrimonio);
+    var patrimonio = sem ? "Sem número" : String(item.patrimonio).trim();
+    var achado = sem ? null : acharNaBase(patrimonio, baseCSV);
     return {
-      patrimonio: item.patrimonio || "",
-      descricao: achado && achado.DescricaoBem ? String(achado.DescricaoBem).trim() : String(item.descricao || "").trim(),
-      tamanho: item.tamanho_sugerido || item.tamanho || "",
+      patrimonio: patrimonio,
+      descricao: achado && achado.DescricaoBem ? String(achado.DescricaoBem).trim() : String((item && item.descricao) || "").trim(),
+      tamanho: (item && (item.tamanho_sugerido || item.tamanho)) || "",
       viavel: false,
       bvm: false,
       foto: "",
       avaliacao: "",
-      semPatrimonio: !item.patrimonio,
+      semPatrimonio: sem,
       naBase: !!achado
     };
   }
@@ -164,6 +178,7 @@
     resolverNomeUnidade: resolverNomeUnidade,
     casarBloco: casarBloco,
     acharNaBase: acharNaBase,
+    ehSemPatrimonio: ehSemPatrimonio,
     enriquecerItem: enriquecerItem
   };
 });

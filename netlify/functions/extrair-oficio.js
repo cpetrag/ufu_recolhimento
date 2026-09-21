@@ -29,8 +29,9 @@ var SYSTEM_PROMPT = [
     "2) unidade_texto = nome COMPLETO da unidade do timbre/remetente (ex.: 'Instituto de Química'). Nunca use só 'Instituto', 'Faculdade' ou 'Diretoria'.",
     "   Prefira a linha do cabeçalho (ex.: Instituto de Química) e siglas no rodapé do ofício (IQUFU) só como reforço nos avisos.",
     "3) campus_texto/bloco_texto/sala_texto a partir do 'Local de Recolhimento' quando houver.",
-    "4) patrimônios: sempre string (ex.: \"013330\"), preservando zeros à esquerda; tamanho_sugerido por porte físico (P/M/G/GG).",
-    "5) se algo incerto, use avisos[] e deixe o campo vazio."
+    "4) Inclua TODOS os bens citados, mesmo sem número de patrimônio. Se não houver número, patrimonio deve ser string vazia e a descricao o texto do bem. Nunca omita um item só porque não tem plaqueta.",
+    "5) patrimônios numerados: sempre string (ex.: \"013330\"), preservando zeros à esquerda; tamanho_sugerido por porte físico (P/M/G/GG).",
+    "6) se algo incerto, use avisos[] e deixe o campo vazio."
 ].join(" ");
 
 exports.handler = async function(event) {
