@@ -1892,7 +1892,37 @@ function app() {
             });
         },
 
+        oficioPersistirFormNoAtual: function() {
+            var cur = this.oficioFila[this.oficioFilaIndex];
+            if (!cur) return;
+            var f = this.oficioItemForm;
+            cur.patrimonio = f.semPatrimonio ? "Sem número" : (f.patrimonio || "");
+            cur.descricao = f.descricao || "";
+            cur.tamanho = f.tamanho || "";
+            cur.viavel = !!f.viavel;
+            cur.bvm = !!f.bvm;
+            cur.foto = f.foto || "";
+            cur.avaliacao = f.avaliacao || "";
+            cur.semPatrimonio = !!f.semPatrimonio || cur.patrimonio === "Sem número";
+            cur.naBase = !!f.naBase;
+        },
+
+        oficioItemAnterior: function() {
+            if (this.oficioFilaIndex <= 0) return;
+            this.oficioPersistirFormNoAtual();
+            this.oficioFilaIndex -= 1;
+            this.oficioCarregarItemAtual();
+        },
+
+        oficioItemProximo: function() {
+            if (this.oficioFilaIndex >= this.oficioFila.length - 1) return;
+            this.oficioPersistirFormNoAtual();
+            this.oficioFilaIndex += 1;
+            this.oficioCarregarItemAtual();
+        },
+
         oficioAcrescentarItem: function() {
+            this.oficioPersistirFormNoAtual();
             this.oficioFila.push({
                 patrimonio: "Sem número",
                 descricao: "",
@@ -1912,6 +1942,7 @@ function app() {
         oficioPularItem: function() {
             // Mantém o item na fila, movendo-o para o fim.
             if (!this.oficioFila.length) return;
+            this.oficioPersistirFormNoAtual();
             var cur = this.oficioFila.splice(this.oficioFilaIndex, 1)[0];
             this.oficioFila.push(cur);
             if (this.oficioFilaIndex >= this.oficioFila.length) this.oficioFilaIndex = 0;

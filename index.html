@@ -14,7 +14,7 @@
     <script src="api.js"></script>
     <script src="oficio-match.js?v=sem-pat-1"></script>
     <script src="fila-faltantes.js?v=fila-5"></script>
-    <script src="app.js?v=fila-7"></script>
+    <script src="app.js?v=fila-8"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -130,9 +130,11 @@
                     </p>
                     <div class="flex flex-wrap gap-2">
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-slate-100 text-slate-700"
-                                x-on:click="filaAnterior()" x-bind:disabled="filaIndice <= 0">Anterior</button>
+                                x-on:click="filaAnterior()" x-bind:disabled="filaIndice <= 0"
+                                title="Vai para o ofício/SEI anterior na fila">← Ofício</button>
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-slate-100 text-slate-700"
-                                x-on:click="filaProximo()" x-bind:disabled="filaIndice >= filaFaltantes.length - 1">Próximo</button>
+                                x-on:click="filaProximo()" x-bind:disabled="filaIndice >= filaFaltantes.length - 1"
+                                title="Vai para o próximo ofício/SEI na fila">Ofício →</button>
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-amber-100 text-amber-800"
                                 x-on:click="filaPular()">Pular</button>
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-rose-600 text-white"
@@ -310,7 +312,19 @@
                         <p class="text-xs text-slate-500 mt-1">Revise os dados; foto e avaliação são opcionais.</p>
                     </div>
                     <span class="shrink-0 bg-blue-100 text-blue-700 text-[10px] font-black px-3 py-1.5 rounded-full"
-                          x-text="'Item ' + (oficioConfirmados + 1) + ' de ' + (oficioConfirmados + oficioFila.length)"></span>
+                          x-text="'Item ' + (oficioFilaIndex + 1) + ' de ' + oficioFila.length
+                            + (oficioConfirmados ? (' · ' + oficioConfirmados + ' ok') : '')"></span>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button type="button"
+                            class="flex-1 bg-slate-200 text-slate-700 p-2.5 rounded-xl font-bold text-xs disabled:opacity-40"
+                            x-on:click="oficioItemAnterior()"
+                            x-bind:disabled="oficioFilaIndex <= 0">← Item anterior</button>
+                    <button type="button"
+                            class="flex-1 bg-slate-200 text-slate-700 p-2.5 rounded-xl font-bold text-xs disabled:opacity-40"
+                            x-on:click="oficioItemProximo()"
+                            x-bind:disabled="oficioFilaIndex >= oficioFila.length - 1">Próximo item →</button>
                 </div>
 
                 <div class="space-y-4">
