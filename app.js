@@ -809,8 +809,6 @@ function app() {
                 if (existe) { alert("Este patrimônio já foi cadastrado neste processo."); return; }
             }
             if (!this.item.descricao || !this.item.descricao.trim()) { alert("Informe a descrição do bem."); return; }
-            if (!this.item.tamanho) { alert("Selecione o Tamanho."); return; }
-            if (!this.item.avaliacao) { alert("Selecione a Avaliação (Reuso, Laudo Técnico ou Descarte)."); return; }
             if (!this.item.foto) { alert("Capture a Foto."); return; }
             this.loading = true;
             API.salvarItem(this.item, this.processoId).then(function(salvo) {

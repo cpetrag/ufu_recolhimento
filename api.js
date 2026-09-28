@@ -136,17 +136,20 @@ function marcarProcessoRecolhido(sei) {
         });
     });
 }
+var TAMANHO_PADRAO = "M";
+var AVALIACAO_PADRAO = "LAUDO_TECNICO";
+
 function salvarItem(item, processoId) {
     var registro = {
         patrimonio: item.patrimonio,
         descricao: item.descricao,
-        tamanho: item.tamanho ? item.tamanho : null,
+        tamanho: item.tamanho || TAMANHO_PADRAO,
         viavel: item.viavel,
         bvm: item.bvm,
         foto: item.foto || "",
         processo_id: processoId,
-        avaliacao: item.avaliacao || null,
-        avaliado_em: item.avaliacao ? new Date().toISOString() : null
+        avaliacao: item.avaliacao || AVALIACAO_PADRAO,
+        avaliado_em: new Date().toISOString()
     };
     return db.from("patrimonios").insert([registro]).select().single().then(function(r) {
         if (r.error) throw r.error; return r.data;
