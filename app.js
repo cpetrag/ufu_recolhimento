@@ -1446,6 +1446,27 @@ function app() {
             });
         },
 
+        // Não cria processo: o SEI não é de recolhimento, então só sai da fila.
+        filaMarcarNaoRecolhimento: function() {
+            var self = this;
+            var card = this.filaAtual;
+            if (!card || card.status === "feito") return;
+            if (!confirm("SEI " + card.sei + " NÃO É RECOLHIMENTO?\n\nEle será retirado da fila sem cadastrar processo.")) {
+                return;
+            }
+            this.filaBackupMsg = null;
+            this.filaConcluirCardAtual({
+                processoId: null,
+                motivo: "nao_recolhimento",
+                abrirProcesso: null
+            }).then(function() {
+                self.filaBackupMsg = "Retirado da fila (não é recolhimento): " + card.sei;
+            }).catch(function(err) {
+                console.error("Falha ao retirar SEI da fila", err);
+                alert("Falha ao retirar da fila: " + (err && err.message ? err.message : "erro"));
+            });
+        },
+
         filaCarregar: function() {
             var self = this;
             if (this._filaCarregarPromise) return this._filaCarregarPromise;

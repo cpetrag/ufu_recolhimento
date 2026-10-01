@@ -14,7 +14,7 @@
     <script src="api.js?v=padrao-1"></script>
     <script src="oficio-match.js?v=sem-pat-1"></script>
     <script src="fila-faltantes.js?v=fila-5"></script>
-    <script src="app.js?v=fila-9"></script>
+    <script src="app.js?v=fila-10"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -141,6 +141,10 @@
                                 x-on:click="filaMarcarRecolhido()"
                                 x-bind:disabled="!(filaAtual && filaAtual.status !== 'feito')"
                                 title="Marca como já recolhido, cria/atualiza no sistema e pula o cadastro">Recolhido</button>
+                        <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-slate-700 text-white"
+                                x-on:click="filaMarcarNaoRecolhimento()"
+                                x-bind:disabled="!(filaAtual && filaAtual.status !== 'feito')"
+                                title="Retira o SEI da fila sem cadastrar processo">Não é recolhimento</button>
                         <button type="button" class="px-3 py-1.5 text-[10px] font-bold uppercase rounded-lg bg-violet-600 text-white"
                                 x-on:click="filaAbrirSei()"
                                 x-bind:disabled="!(filaAtual && filaAtual.link)">Abrir no SEI</button>
@@ -165,9 +169,11 @@
                        <span class="ml-2 text-slate-700" x-text="filaAtual.etiqueta"></span></p>
                     <p><span class="font-bold text-slate-500 uppercase text-[10px]">Status</span>
                        <span class="ml-2 font-bold"
-                             x-bind:class="filaAtual.status === 'feito' ? (filaAtual.motivo === 'recolhido' ? 'text-rose-700' : 'text-emerald-700') : 'text-amber-700'"
+                             x-bind:class="filaAtual.status === 'feito'
+                               ? (filaAtual.motivo === 'recolhido' ? 'text-rose-700' : filaAtual.motivo === 'nao_recolhimento' ? 'text-slate-600' : 'text-emerald-700')
+                               : 'text-amber-700'"
                              x-text="filaAtual.status === 'feito'
-                               ? (filaAtual.motivo === 'recolhido' ? 'recolhido' : 'feito')
+                               ? (filaAtual.motivo === 'recolhido' ? 'recolhido' : filaAtual.motivo === 'nao_recolhimento' ? 'não é recolhimento' : 'feito')
                                : (oficioPasso > 1 ? 'em andamento' : 'pendente')"></span></p>
                 </div>
             </div>
