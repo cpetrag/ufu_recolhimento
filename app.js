@@ -1205,7 +1205,11 @@ function app() {
             doc.text(processos + " processo(s) · " + itens + " item(ns)", pw / 2, y, { align: "center" });
             y += 8;
 
-            grupos.forEach(function(campus) {
+            grupos.forEach(function(campus, indice) {
+                if (indice > 0) {
+                    doc.addPage();
+                    y = 16;
+                }
                 precisa(12);
                 doc.setFillColor(30, 41, 59);
                 doc.rect(margem, y - 4, largura, 8, "F");
