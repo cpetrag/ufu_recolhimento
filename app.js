@@ -1175,11 +1175,30 @@ function app() {
                 itens += campus.itens;
             });
 
+            var campusCorrente = null;
+            var rotuloPagina = {};
+
+            function registrarPagina() {
+                rotuloPagina[doc.getNumberOfPages()] = campusCorrente ? campusCorrente.campus : "";
+            }
+            function faixaCampus(campus, continuacao) {
+                var titulo = campus.campus + "  ·  " + campus.processos + " processos  ·  " + campus.itens + " itens";
+                if (continuacao) titulo = campus.campus + "  (continua)";
+                doc.setFillColor(30, 41, 59);
+                doc.rect(margem, y - 4, largura, 8, "F");
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(11);
+                doc.text(titulo, margem + 2, y + 1);
+                doc.setTextColor(0, 0, 0);
+                y += 10;
+                registrarPagina();
+            }
             function precisa(altura) {
-                if (y + altura > 285) {
-                    doc.addPage();
-                    y = 16;
-                }
+                if (y + altura <= 278) return;
+                doc.addPage();
+                y = 16;
+                if (campusCorrente) faixaCampus(campusCorrente, true);
             }
             function escrever(texto, tamanho, estilo, recuo) {
                 doc.setFont("helvetica", estilo || "normal");
@@ -1205,20 +1224,14 @@ function app() {
             doc.text(processos + " processo(s) · " + itens + " item(ns)", pw / 2, y, { align: "center" });
             y += 8;
 
+            registrarPagina();
             grupos.forEach(function(campus, indice) {
                 if (indice > 0) {
                     doc.addPage();
                     y = 16;
                 }
-                precisa(12);
-                doc.setFillColor(30, 41, 59);
-                doc.rect(margem, y - 4, largura, 8, "F");
-                doc.setTextColor(255, 255, 255);
-                doc.setFont("helvetica", "bold");
-                doc.setFontSize(12);
-                doc.text(campus.campus + "  ·  " + campus.processos + " processos  ·  " + campus.itens + " itens", margem + 2, y + 1);
-                doc.setTextColor(0, 0, 0);
-                y += 10;
+                campusCorrente = campus;
+                faixaCampus(campus, false);
 
                 campus.departamentos.forEach(function(dep) {
                     precisa(8);
@@ -1247,7 +1260,27 @@ function app() {
                 y += 4;
             });
 
-            doc.save("Relatorio_consolidado_" + new Date().toISOString().substring(0, 10) + ".pdf");
+            var totalPaginas = doc.getNumberOfPages();
+            var numero;
+            for (numero = 1; numero <= totalPaginas; numero++) {
+                doc.setPage(numero);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.setTextColor(100, 116, 139);
+                doc.text(
+                    (rotuloPagina[numero] || "") + "   ·   " + numero + " / " + totalPaginas,
+                    pw / 2,
+                    290,
+                    { align: "center" }
+                );
+                doc.setTextColor(0, 0, 0);
+            }
+
+            var agora = new Date();
+            function doisDigitos(n) { return (n < 10 ? "0" : "") + n; }
+            var carimbo = agora.getFullYear() + "-" + doisDigitos(agora.getMonth() + 1) + "-" + doisDigitos(agora.getDate())
+                + "_" + doisDigitos(agora.getHours()) + doisDigitos(agora.getMinutes());
+            doc.save("Relatorio_consolidado_" + carimbo + ".pdf");
         },
 
         _carregarProcesso: function(p, opts) {
