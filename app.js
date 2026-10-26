@@ -60,6 +60,14 @@ function app() {
         processosIncluirRecolhidos: false,
         itensFiltroSemFoto: false,
 
+        // ── aba relatório ─────────────────────────────
+        relatorioLinhas: [], relatorioCarregando: false, relatorioErro: null,
+        relatorioBusca: "", relatorioCampus: "", relatorioDepartamento: "",
+        relatorioIncluirRecolhidos: false,
+        relatorioOrdenar: "campus", relatorioDirecao: "asc",
+        relatorioPagina: 1, relatorioPorPagina: 50,
+        relatorioExportando: false,
+
         // ── seleção múltipla ──────────────────────────
         selecionados: [],       // ids selecionados via checkbox
         seiManual: "",          // campo de texto para digitar SEIs
@@ -997,6 +1005,247 @@ function app() {
             });
         },
 
+        carregarRelatorio: function(forcar) {
+            var self = this;
+            if (this.relatorioLinhas.length && !forcar) return;
+            if (typeof Relatorio === "undefined") {
+                this.relatorioErro = "Módulo do relatório não carregou.";
+                return;
+            }
+            this.relatorioCarregando = true;
+            this.relatorioErro = null;
+            API.listarRelatorio().then(function(dados) {
+                self.relatorioLinhas = Relatorio.montarLinhas(dados);
+                self.relatorioPagina = 1;
+                self.relatorioCarregando = false;
+            }).catch(function(err) {
+                self.relatorioErro = "Erro ao carregar o relatório." + (err && err.message ? " " + err.message : "");
+                self.relatorioCarregando = false;
+            });
+        },
+
+        relatorioFiltros: function(parcial) {
+            return {
+                busca: parcial ? "" : this.relatorioBusca,
+                campus: parcial === "campus" ? "" : this.relatorioCampus,
+                departamento: parcial ? "" : this.relatorioDepartamento,
+                incluirRecolhidos: this.relatorioIncluirRecolhidos
+            };
+        },
+
+        get relatorioCampi() {
+            if (typeof Relatorio === "undefined") return [];
+            return Relatorio.opcoes(Relatorio.filtrar(this.relatorioLinhas, this.relatorioFiltros("campus")), "campus");
+        },
+
+        get relatorioDepartamentos() {
+            if (typeof Relatorio === "undefined") return [];
+            return Relatorio.opcoes(Relatorio.filtrar(this.relatorioLinhas, this.relatorioFiltros("departamento")), "departamento");
+        },
+
+        get relatorioFiltradas() {
+            if (typeof Relatorio === "undefined") return [];
+            return Relatorio.ordenar(
+                Relatorio.filtrar(this.relatorioLinhas, this.relatorioFiltros(false)),
+                this.relatorioOrdenar,
+                this.relatorioDirecao
+            );
+        },
+
+        get relatorioResumo() {
+            if (typeof Relatorio === "undefined") return { linhas: 0, processos: 0, itens: 0 };
+            return Relatorio.resumir(this.relatorioFiltradas);
+        },
+
+        get relatorioGrupos() {
+            if (typeof Relatorio === "undefined") return [];
+            var linhas = Relatorio.ordenar(this.relatorioFiltradas, "campus", this.relatorioDirecao);
+            return Relatorio.agrupar(linhas);
+        },
+
+        get relatorioTotalPaginas() {
+            return Math.max(1, this.relatorioGrupos.length || 1);
+        },
+
+        get relatorioPaginaAtual() {
+            var pagina = parseInt(this.relatorioPagina, 10) || 1;
+            if (pagina < 1) return 1;
+            if (pagina > this.relatorioTotalPaginas) return this.relatorioTotalPaginas;
+            return pagina;
+        },
+
+        get relatorioGrupoAtual() {
+            var grupos = this.relatorioGrupos;
+            if (!grupos.length) return null;
+            return grupos[this.relatorioPaginaAtual - 1];
+        },
+
+        relatorioDefinirOrdem: function(chave) {
+            if (this.relatorioOrdenar === chave) {
+                this.relatorioDirecao = this.relatorioDirecao === "asc" ? "desc" : "asc";
+            } else {
+                this.relatorioOrdenar = chave;
+                this.relatorioDirecao = "asc";
+            }
+            this.relatorioPagina = 1;
+        },
+
+        relatorioAoMudarCampus: function() {
+            var self = this;
+            this.relatorioPagina = 1;
+            if (!this.relatorioDepartamento) return;
+            var ainda = this.relatorioDepartamentos.some(function(nome) { return nome === self.relatorioDepartamento; });
+            if (!ainda) this.relatorioDepartamento = "";
+        },
+
+        relatorioRotuloOrdem: function(chave) {
+            if (this.relatorioOrdenar !== chave) return "";
+            return this.relatorioDirecao === "asc" ? " ↑" : " ↓";
+        },
+
+        _linhasRelatorioExportacao: function() {
+            if (typeof Relatorio === "undefined") return null;
+            var linhas = Relatorio.ordenar(this.relatorioFiltradas, "campus", this.relatorioDirecao);
+            if (!linhas.length) {
+                alert("Nada para exportar com os filtros atuais.");
+                return null;
+            }
+            return linhas;
+        },
+
+        exportarRelatorioCSV: function() {
+            var linhas = this._linhasRelatorioExportacao();
+            if (!linhas) return;
+            var cab = ["Campus", "Departamento", "Processo", "Sala", "Patrimônio", "Descrição", "Itens no processo"];
+            var csv = Papa.unparse({ fields: cab, data: Relatorio.paraTabela(linhas) });
+            var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = "Relatorio_recolhimento_" + new Date().toISOString().substring(0, 10) + ".csv";
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+
+        exportarRelatorioExcel: function() {
+            var linhas = this._linhasRelatorioExportacao();
+            if (!linhas) return;
+            var XLS = window.XLSX;
+            var cab = [["Campus", "Departamento", "Processo", "Sala", "Patrimônio", "Descrição", "Itens no processo"]];
+            var wb = XLS.utils.book_new();
+            var ws = XLS.utils.aoa_to_sheet(cab.concat(Relatorio.paraTabela(linhas)));
+            ws["!cols"] = [22, 36, 24, 22, 16, 42, 18].map(function(w) { return { wch: w }; });
+            XLS.utils.book_append_sheet(wb, ws, "Relatorio");
+            XLS.writeFile(wb, "Relatorio_recolhimento_" + new Date().toISOString().substring(0, 10) + ".xlsx");
+        },
+
+        exportarRelatorioPDF: function(comFotos) {
+            var linhas = this._linhasRelatorioExportacao();
+            if (!linhas) return;
+            var grupos = Relatorio.agrupar(linhas);
+            var self = this;
+            this.relatorioExportando = true;
+            if (comFotos) {
+                this._exportarPDFConsolidado(
+                    Relatorio.processosOrdenados(grupos),
+                    "Relatorio_com_fotos",
+                    function() { self.relatorioExportando = false; }
+                );
+                return;
+            }
+            try {
+                this._exportarRelatorioPDFTexto(grupos);
+            } catch (err) {
+                alert("Falha ao gerar o PDF: " + (err && err.message ? err.message : "erro"));
+            }
+            this.relatorioExportando = false;
+        },
+
+        _exportarRelatorioPDFTexto: function(grupos) {
+            var jsPDF = window.jspdf.jsPDF;
+            var doc = new jsPDF("p", "mm", "a4");
+            var pw = doc.internal.pageSize.getWidth();
+            var margem = 14;
+            var largura = pw - margem * 2;
+            var y = 16;
+            var processos = 0;
+            var itens = 0;
+            grupos.forEach(function(campus) {
+                processos += campus.processos;
+                itens += campus.itens;
+            });
+
+            function precisa(altura) {
+                if (y + altura > 285) {
+                    doc.addPage();
+                    y = 16;
+                }
+            }
+            function escrever(texto, tamanho, estilo, recuo) {
+                doc.setFont("helvetica", estilo || "normal");
+                doc.setFontSize(tamanho);
+                var linhasTexto = doc.splitTextToSize(String(texto || ""), largura - recuo);
+                var i;
+                for (i = 0; i < linhasTexto.length; i++) {
+                    precisa(5);
+                    doc.text(linhasTexto[i], margem + recuo, y);
+                    y += 4.6;
+                }
+            }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(14);
+            doc.text("Universidade Federal de Uberlândia", pw / 2, y, { align: "center" });
+            y += 6;
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            doc.text("Relatório consolidado de recolhimento", pw / 2, y, { align: "center" });
+            y += 5;
+            doc.setFontSize(8);
+            doc.text(processos + " processo(s) · " + itens + " item(ns)", pw / 2, y, { align: "center" });
+            y += 8;
+
+            grupos.forEach(function(campus) {
+                precisa(12);
+                doc.setFillColor(30, 41, 59);
+                doc.rect(margem, y - 4, largura, 8, "F");
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(12);
+                doc.text(campus.campus + "  ·  " + campus.processos + " processos  ·  " + campus.itens + " itens", margem + 2, y + 1);
+                doc.setTextColor(0, 0, 0);
+                y += 10;
+
+                campus.departamentos.forEach(function(dep) {
+                    precisa(8);
+                    doc.setFont("helvetica", "bold");
+                    doc.setFontSize(11);
+                    doc.text(dep.departamento, margem + 4, y);
+                    y += 6;
+                    dep.processos.forEach(function(proc) {
+                        escrever(
+                            proc.processo + " — " + proc.totalItens + " itens — " + (proc.sala || ""),
+                            10,
+                            "bold",
+                            8
+                        );
+                        if (!proc.itens.length) {
+                            escrever("Nenhum item registrado.", 9, "normal", 12);
+                        } else {
+                            proc.itens.forEach(function(item) {
+                                escrever((item.patrimonio || "—") + "   " + (item.descricao || ""), 9, "normal", 12);
+                            });
+                        }
+                        y += 1.5;
+                    });
+                    y += 2;
+                });
+                y += 4;
+            });
+
+            doc.save("Relatorio_consolidado_" + new Date().toISOString().substring(0, 10) + ".pdf");
+        },
+
         _carregarProcesso: function(p, opts) {
             opts = opts || {};
             this.processo = p;
@@ -1168,33 +1417,52 @@ function app() {
             });
         },
 
-        _exportarPDFConsolidado: function(procs, nomeArquivo) {
+        _exportarPDFConsolidado: function(procs, nomeArquivo, onDone) {
             var self = this;
-            if (procs.length === 0) { alert("Nenhum processo selecionado."); return; }
+            if (procs.length === 0) {
+                alert("Nenhum processo selecionado.");
+                if (onDone) onDone();
+                return;
+            }
             this.exportandoSelecionados = true;
             var jsPDF = window.jspdf.jsPDF;
             var doc = new jsPDF("p", "mm", "a4");
             var pw = doc.internal.pageSize.getWidth();
             var IPP = 5, primeiro = true;
+            function finalizar() {
+                self.exportandoSelecionados = false;
+                self.exportando = false;
+                if (onDone) onDone();
+            }
             function proximo(idx) {
                 if (idx >= procs.length) {
                     doc.save((nomeArquivo || "Recolhimento") + "_" + new Date().toISOString().substring(0,10) + ".pdf");
-                    self.exportandoSelecionados = false; self.exportando = false; return;
+                    finalizar();
+                    return;
                 }
                 var proc = procs[idx];
+                var yLinha = proc.campusNome ? 32 : 30;
+                var startY = proc.campusNome ? 54 : 48;
                 API.carregarItensProcessoCompleto(proc.id).then(function(itens) {
                     function cab() {
                         doc.setFontSize(14); doc.setFont("helvetica","bold");
                         doc.text("Universidade Federal de Uberlândia", pw/2, 15, {align:"center"});
                         doc.setFontSize(10); doc.setFont("helvetica","normal");
-                        doc.text(proc.pro_reitoria_unidade||"", pw/2, 21, {align:"center"});
-                        doc.line(15, 30, pw-15, 30);
-                        doc.text("PROCESSO SEI: " + proc.sei, 15, 38);
-                        doc.text("SALA / ESPAÇO: " + (proc.sala||""), 15, 43);
+                        if (proc.campusNome) {
+                            doc.setFont("helvetica","bold");
+                            doc.text(proc.campusNome, pw/2, 21, {align:"center"});
+                            doc.setFont("helvetica","normal");
+                            doc.text(proc.pro_reitoria_unidade||"", pw/2, 26, {align:"center"});
+                        } else {
+                            doc.text(proc.pro_reitoria_unidade||"", pw/2, 21, {align:"center"});
+                        }
+                        doc.line(15, yLinha, pw-15, yLinha);
+                        doc.text("PROCESSO SEI: " + proc.sei, 15, yLinha + 8);
+                        doc.text("SALA / ESPAÇO: " + (proc.sala||""), 15, yLinha + 13);
                     }
                     if (itens.length === 0) {
                         if (!primeiro) doc.addPage(); primeiro = false;
-                        cab(); doc.setFontSize(10); doc.text("Nenhum item registrado.", 15, 55);
+                        cab(); doc.setFontSize(10); doc.text("Nenhum item registrado.", 15, startY + 7);
                         proximo(idx+1); return;
                     }
                     for (var p = 0; p < itens.length; p += IPP) {
@@ -1207,7 +1475,7 @@ function app() {
                                 "Patrimônio: "+i.patrimonio+"\nDescrição: "+i.descricao+
                                 "\nTamanho: "+(i.tamanho||"")+"\nViável: "+(i.viavel?"Sim":"Não")+"\nBVM: "+(i.bvm?"Sim":"Não")];
                         });
-                        doc.autoTable({ startY:48, head:[["Foto","Detalhes"]], body:body,
+                        doc.autoTable({ startY:startY, head:[["Foto","Detalhes"]], body:body,
                             columnStyles:{0:{cellWidth:45},1:{cellWidth:"auto"}},
                             styles:{fontSize:10.5,valign:"middle",cellPadding:4},
                             didDrawCell: function(fc){ return function(d) {
@@ -1221,6 +1489,9 @@ function app() {
                         });
                     }
                     proximo(idx+1);
+                }).catch(function(err) {
+                    alert("Falha ao gerar o PDF com fotos: " + (err && err.message ? err.message : "erro"));
+                    finalizar();
                 });
             }
             proximo(0);

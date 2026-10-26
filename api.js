@@ -173,6 +173,35 @@ function excluirProcesso(processoId) {
         });
     });
 }
+function _paginarTabela(tabela, select) {
+    function pagina(from, acumulado) {
+        return db.from(tabela).select(select).order("id").range(from, from + 999).then(function(r) {
+            if (r.error) throw r.error;
+            var lote = r.data || [];
+            var total = acumulado.concat(lote);
+            if (lote.length === 1000) return pagina(from + 1000, total);
+            return total;
+        });
+    }
+    return pagina(0, []);
+}
+
+function listarRelatorio() {
+    return Promise.all([
+        _paginarTabela("campus", "id,nome"),
+        _paginarTabela("blocos", "id,nome,campus_id"),
+        _paginarTabela("processos", "id,sei,pro_reitoria_unidade,campus_id,bloco_id,sala,created_at,recolhido"),
+        _paginarTabela("patrimonios", "id,processo_id,patrimonio,descricao")
+    ]).then(function(partes) {
+        return {
+            campus: partes[0],
+            blocos: partes[1],
+            processos: partes[2],
+            itens: partes[3]
+        };
+    });
+}
+
 function listarProcessos() {
     return db.from("processos").select("*").order("created_at", { ascending: false }).then(function(res) {
         var processos = res.data || [];
@@ -449,6 +478,7 @@ window.API = {
     marcarProcessoRecolhido: marcarProcessoRecolhido,
     editarItem: editarItem, excluirItem: excluirItem, excluirProcesso: excluirProcesso,
     listarProcessos: listarProcessos,
+    listarRelatorio: listarRelatorio,
     enviarItemSharePoint: enviarItemSharePoint, enviarParaSharePoint: enviarParaSharePoint,
     extrairOficio: extrairOficio,
     exportarBackupCompleto: exportarBackupCompleto,

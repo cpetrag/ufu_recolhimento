@@ -11,10 +11,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="config.public.js"></script>
-    <script src="api.js?v=padrao-1"></script>
+    <script src="api.js?v=relatorio-1"></script>
     <script src="oficio-match.js?v=sem-pat-1"></script>
     <script src="fila-faltantes.js?v=fila-5"></script>
-    <script src="app.js?v=fila-10"></script>
+    <script src="relatorio.js?v=relatorio-2"></script>
+    <script src="app.js?v=relatorio-2"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -43,7 +44,7 @@
     </div>
 
     <nav class="bg-white shadow-md border-b sticky top-0 z-50">
-        <div class="flex justify-around p-2">
+        <div class="flex justify-around p-2 overflow-x-auto [&>button]:shrink-0">
             <button x-on:click="aba = 'processo'" x-bind:class="aba === 'processo' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase transition-all flex flex-col items-center">
                 <span>📁</span><span>Processo</span>
             </button>
@@ -59,8 +60,11 @@
             <button x-on:click="aba = 'classificacao'; if(processoId) buscaSeiClassif = processo.sei" x-bind:class="aba === 'classificacao' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>🏷️</span><span>Classif.</span>
             </button>
-            <button x-on:click="aba = 'processos'; carregarListaProcessos()" x-bind:class="aba === 'processos' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
+            <button x-on:click="aba = 'processos'; carregarListaProcessos()" x-bind:class="aba === 'processos' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all flex-shrink-0">
                 <span>📋</span><span>Processos</span>
+            </button>
+            <button x-on:click="aba = 'relatorio'; carregarRelatorio()" x-bind:class="aba === 'relatorio' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all flex-shrink-0">
+                <span>📑</span><span>Relatório</span>
             </button>
             <button x-on:click="aba = 'busca'" x-bind:class="aba === 'busca' ? 'tab-active' : 'text-slate-400'" class="px-3 py-2 text-[10px] uppercase flex flex-col items-center transition-all">
                 <span>🔍</span><span>Busca</span>
@@ -71,7 +75,7 @@
         </div>
     </nav>
 
-    <div class="p-4 max-w-lg mx-auto">
+    <div class="p-4 mx-auto" x-bind:class="aba === 'relatorio' ? 'max-w-6xl' : 'max-w-lg'">
         <h1 class="text-center font-black text-slate-700 mb-4 uppercase tracking-tighter text-xl">Recolhimento UFU</h1>
 
         <!-- ================================ ABA PROCESSO ================================ -->
@@ -1016,6 +1020,88 @@
                 </div>
             </template>
 
+        </div>
+
+        <!-- ================================ ABA RELATÓRIO ================================ -->
+        <div x-show="aba === 'relatorio'" x-cloak class="space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow border-t-4 border-indigo-600 space-y-3">
+                <h2 class="font-bold text-indigo-700 text-[10px] uppercase tracking-widest text-center">Relatório de recolhimento</h2>
+                <p class="text-[10px] text-slate-400 text-center">Consolidado por campus, departamento e processo. Os itens aparecem em texto. O PDF com fotos segue a mesma ordem e inclui a imagem de cada bem.</p>
+
+                <div class="flex flex-wrap gap-2 items-center">
+                    <input class="flex-1 min-w-[180px] p-2 border rounded-lg text-sm bg-slate-50" placeholder="SEI, campus, departamento, patrimônio..."
+                           x-model="relatorioBusca" x-on:input="relatorioPagina = 1">
+                    <select class="p-2 border rounded-lg text-sm bg-white" x-model="relatorioCampus" x-on:change="relatorioAoMudarCampus()">
+                        <option value="">Todos os campi</option>
+                        <template x-for="nome in relatorioCampi" x-bind:key="'camp-' + nome">
+                            <option x-bind:value="nome" x-text="nome"></option>
+                        </template>
+                    </select>
+                    <select class="p-2 border rounded-lg text-sm bg-white max-w-[240px]" x-model="relatorioDepartamento" x-on:change="relatorioPagina = 1">
+                        <option value="">Todos os departamentos</option>
+                        <template x-for="nome in relatorioDepartamentos" x-bind:key="'dep-' + nome">
+                            <option x-bind:value="nome" x-text="nome"></option>
+                        </template>
+                    </select>
+                    <button type="button" class="p-2 border rounded-lg text-sm bg-white" x-on:click="relatorioDefinirOrdem('campus')"
+                            x-text="relatorioDirecao === 'asc' ? 'A → Z' : 'Z → A'"></button>
+                    <label class="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap cursor-pointer select-none">
+                        <input type="checkbox" class="accent-indigo-600 w-4 h-4" x-model="relatorioIncluirRecolhidos" x-on:change="relatorioPagina = 1">
+                        Incluir recolhidos
+                    </label>
+                </div>
+
+                <p class="text-[10px] text-slate-400" x-show="!relatorioCarregando && !relatorioErro"
+                   x-text="relatorioResumo.processos + ' processo(s) · ' + relatorioResumo.itens + ' item(ns) · ' + relatorioResumo.linhas + ' linha(s)'"></p>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <button type="button" class="bg-slate-700 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="carregarRelatorio(true)">Atualizar</button>
+                    <button type="button" class="bg-emerald-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="exportarRelatorioCSV()">CSV</button>
+                    <button type="button" class="bg-teal-600 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="exportarRelatorioExcel()">Excel</button>
+                    <button type="button" class="bg-indigo-700 text-white text-[10px] font-bold uppercase py-2 rounded-lg" x-on:click="exportarRelatorioPDF(false)" x-bind:disabled="relatorioExportando">
+                        <span x-text="relatorioExportando ? 'Gerando...' : 'PDF sem fotos'"></span>
+                    </button>
+                    <button type="button" class="bg-violet-700 text-white text-[10px] font-bold uppercase py-2 rounded-lg sm:col-span-2" x-on:click="exportarRelatorioPDF(true)" x-bind:disabled="relatorioExportando">
+                        <span x-text="relatorioExportando ? 'Gerando...' : 'PDF com fotos'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="relatorioCarregando" class="text-center text-sm text-slate-400 py-6">Carregando relatório...</div>
+            <div x-show="relatorioErro" class="text-center text-sm text-red-500 py-4" x-text="relatorioErro"></div>
+            <div x-show="!relatorioCarregando && !relatorioErro && relatorioFiltradas.length === 0" class="text-center text-sm text-slate-400 py-6">Nenhum processo encontrado com esses filtros.</div>
+
+            <div x-show="!relatorioCarregando && !relatorioErro && relatorioGrupos.length > 1" class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                <button type="button" class="px-3 py-2 border rounded-lg bg-white" x-on:click="relatorioPagina = Math.max(1, relatorioPaginaAtual - 1)">Campus anterior</button>
+                <span class="font-semibold text-center" x-text="(relatorioGrupoAtual ? relatorioGrupoAtual.campus : '') + ' · ' + relatorioPaginaAtual + ' de ' + relatorioGrupos.length"></span>
+                <button type="button" class="px-3 py-2 border rounded-lg bg-white" x-on:click="relatorioPagina = Math.min(relatorioGrupos.length, relatorioPaginaAtual + 1)">Próximo campus</button>
+            </div>
+
+            <template x-if="relatorioGrupoAtual && !relatorioCarregando && !relatorioErro">
+                <section class="bg-white rounded-xl shadow overflow-hidden">
+                    <h3 class="bg-slate-800 text-white px-4 py-3 font-bold text-sm" x-text="relatorioGrupoAtual.campus + ' · ' + relatorioGrupoAtual.processos + ' processos · ' + relatorioGrupoAtual.itens + ' itens'"></h3>
+                    <template x-for="dep in relatorioGrupoAtual.departamentos" x-bind:key="relatorioGrupoAtual.campus + '|' + dep.departamento">
+                        <div class="border-t border-slate-200">
+                            <h4 class="px-4 py-2 font-semibold text-sm text-indigo-900 bg-indigo-50" x-text="dep.departamento + ' · ' + dep.processos.length + ' processo(s)'"></h4>
+                            <template x-for="proc in dep.processos" x-bind:key="proc.processoId">
+                                <div class="px-4 py-3 border-t border-slate-100">
+                                    <p class="text-sm">
+                                        <span class="font-mono font-bold" x-text="proc.processo"></span>
+                                        <span class="text-slate-600" x-text="' · ' + proc.totalItens + ' itens'"></span>
+                                        <span class="text-slate-400" x-text="' · ' + proc.sala"></span>
+                                    </p>
+                                    <ul class="mt-2 ml-4 space-y-1 text-xs text-slate-600">
+                                        <template x-for="item in proc.itens" x-bind:key="proc.processoId + '-' + (item.itemId || item.patrimonio)">
+                                            <li x-text="(item.patrimonio || '—') + ' — ' + (item.descricao || 'sem descrição')"></li>
+                                        </template>
+                                    </ul>
+                                    <p x-show="proc.itens.length === 0" class="mt-1 ml-4 text-xs text-slate-400">Nenhum item registrado.</p>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </section>
+            </template>
         </div>
 
         <!-- ================================ ABA BUSCA GLOBAL ================================ -->
